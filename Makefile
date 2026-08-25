@@ -1,0 +1,49 @@
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+.PHONY: help setup test lint build benchmark verify api web clean-demo-data
+
+help:
+	@echo "Nightingale Continuum"
+	@echo "  make setup      Install pinned backend and frontend dependencies"
+	@echo "  make api        Run the FastAPI service on 127.0.0.1:8000"
+	@echo "  make web        Run the Vite client on 127.0.0.1:5173"
+	@echo "  make test       Run backend and frontend tests"
+	@echo "  make lint       Run Python and TypeScript static checks"
+	@echo "  make build      Build the production client"
+	@echo "  make benchmark  Measure the warm-path glance endpoint"
+	@echo "  make verify     Run all non-browser release gates"
+
+setup:
+	python3 -m venv .venv
+	.venv/bin/python -m pip install --upgrade pip
+	.venv/bin/python -m pip install -e 'backend[dev]'
+	npm --prefix frontend ci
+
+api:
+	PYTHONPATH=backend .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+web:
+	npm --prefix frontend run dev -- --host 127.0.0.1
+
+test:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests
+	npm --prefix frontend run test
+
+lint:
+	.venv/bin/ruff check backend/app backend/tests scripts
+	.venv/bin/ruff format --check backend/app backend/tests scripts
+	npm --prefix frontend run lint
+
+build:
+	npm --prefix frontend run build
+
+benchmark:
+	.venv/bin/python scripts/benchmark_glance.py --output output/evidence/glance_benchmark.json
+
+verify:
+	./scripts/verify_all.sh
+
+clean-demo-data:
+	@echo "Remove local *.sqlite3 or *.db files manually after confirming their exact paths."
+

@@ -21,6 +21,7 @@ from .care import (
     version_diff,
 )
 from .database import Database, sqlite_version
+from .delta import build_delta_lens
 from .evaluation import evaluate_shadow_policy
 from .importance import (
     build_glance_projection,
@@ -407,6 +408,12 @@ def create_app(
             "source_revision": projection.source_revision,
             "projection_updated_at": _iso(projection.updated_at),
         }
+
+    @app.get(f"{API_PREFIX}/patients/{{patient_id}}/delta")
+    def patient_delta(patient_id: str, session: SessionDep, actor: ActorDep) -> dict:
+        require_internal_collaboration(actor)
+        patient = require_patient(session, actor, patient_id)
+        return build_delta_lens(session, patient.id)
 
     @app.post(f"{API_PREFIX}/patients/{{patient_id}}/entries", status_code=201)
     def add_entry(
