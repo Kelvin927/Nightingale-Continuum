@@ -370,7 +370,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     pdf.setFillColor(TEAL)
     pdf.setFont("Helvetica-Bold", 6.8)
     pdf.drawString(51, 158, "VERIFICATION CONTRACT")
-    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage")
+    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage + 5 E2E")
     metric_card(pdf, 177, 92, 116, "900", "Property examples")
     metric_card(pdf, 303, 92, 116, "0 known", "Dependency advisories")
     metric_card(pdf, 429, 92, 116, "0", "Mutation survivors")
@@ -726,6 +726,7 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "Learning earns influence",
         measured_metrics()["warm_p95"],
         "124 tests",
+        "5 E2E",
         "100%",
         "Synthetic data only",
     ]

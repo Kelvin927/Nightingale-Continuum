@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help setup test lint build brief benchmark benchmark-cold security mutation verify api web clean-demo-data
+.PHONY: help setup test test-browser lint build brief benchmark benchmark-cold security mutation verify api web clean-demo-data
 
 help:
 	@echo "Nightingale Continuum"
@@ -9,6 +9,7 @@ help:
 	@echo "  make api        Run the FastAPI service on 127.0.0.1:8000"
 	@echo "  make web        Run the Vite client on 127.0.0.1:5173"
 	@echo "  make test       Run backend and frontend tests"
+	@echo "  make test-browser  Run desktop/mobile Chromium workflow tests"
 	@echo "  make lint       Run Python and TypeScript static checks"
 	@echo "  make build      Build the production client"
 	@echo "  make brief      Build and structurally verify the 3-page technical brief"
@@ -35,6 +36,10 @@ test:
 	NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/pytest backend/tests -W error --cov=backend/app --cov-branch --cov-fail-under=100
 	npm --prefix frontend run test:coverage
 	.venv/bin/python scripts/normalize_frontend_coverage.py
+
+test-browser:
+	npm --prefix frontend run test:e2e
+	.venv/bin/python scripts/normalize_browser_e2e.py
 
 lint:
 	.venv/bin/ruff check --config backend/pyproject.toml backend/app backend/tests scripts

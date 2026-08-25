@@ -1,4 +1,9 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { defineConfig, devices } from "@playwright/test";
+
+const e2eDatabaseUrl = `sqlite:///${join(tmpdir(), `nightingale-e2e-${process.pid}.sqlite3`)}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -7,7 +12,11 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: true,
   retries: 1,
-  reporter: [["list"], ["html", { open: "never" }]],
+  reporter: [
+    ["list"],
+    ["json", { outputFile: "../output/evidence/browser_e2e.json" }],
+    ["html", { open: "never" }],
+  ],
   use: {
     baseURL: "http://127.0.0.1:5173",
     trace: "on-first-retry",
@@ -15,12 +24,16 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   projects: [
-    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "desktop-chromium",
+      grepInvert: /@mobile/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
   ],
   webServer: [
     {
-      command: "PYTHONPATH=../backend ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000",
+      command: `NIGHTINGALE_DATABASE_URL='${e2eDatabaseUrl}' PYTHONPATH=../backend ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000`,
       cwd: ".",
       url: "http://127.0.0.1:8000/health",
       reuseExistingServer: true,
@@ -33,4 +46,3 @@ export default defineConfig({
     },
   ],
 });
-

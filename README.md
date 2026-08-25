@@ -78,8 +78,11 @@ Browser tests are defined for desktop Chromium and Pixel 7-sized mobile Chromium
 ```bash
 cd frontend
 npx playwright install chromium
-npm run test:e2e
+cd ..
+make test-browser
 ```
+
+The committed browser run passes all 5 applicable workflows with zero failures, retries classified as flaky, or skipped cases. Each run uses a unique temporary SQLite database so parallel browser requests cannot touch demo state or share a single in-memory connection.
 
 ## Where security is enforced
 

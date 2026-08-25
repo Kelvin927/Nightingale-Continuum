@@ -25,6 +25,7 @@ REQUIRED_PATHS = {
     "output/evidence/cold_start_benchmark.json",
     "output/evidence/dependency_security.json",
     "output/evidence/backend_coverage.json",
+    "output/evidence/browser_e2e.json",
     "output/evidence/frontend-coverage/coverage-summary.json",
     "output/evidence/mutation_testing.json",
     "output/evidence/python_dependency_audit.json",
@@ -47,6 +48,7 @@ REQUIRED_PATHS = {
     "frontend/src/accessibility.test.tsx",
     "scripts/security_evidence.py",
     "scripts/mutation_evidence.py",
+    "scripts/normalize_browser_e2e.py",
     "scripts/normalize_frontend_coverage.py",
     "scripts/benchmark_cold_start.py",
     "scripts/release_manifest.py",
@@ -149,6 +151,13 @@ def main() -> None:
             payload["total"][metric]["pct"] == 100
             for metric in ("lines", "statements", "functions", "branches")
         ),
+        "browser_e2e.json": lambda payload: (
+            payload["stats"]["expected"] == 5
+            and payload["stats"]["unexpected"] == 0
+            and payload["stats"]["flaky"] == 0
+            and payload["stats"]["skipped"] == 0
+            and not payload["errors"]
+        ),
         "dependency_security.json": lambda payload: (
             payload["passed"]
             and payload["python"]["known_vulnerabilities"] == 0
@@ -204,6 +213,25 @@ def main() -> None:
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             failures.append(f"invalid frontend coverage path evidence {name}: {exc}")
 
+    browser_evidence_path = ROOT / "output" / "evidence" / "browser_e2e.json"
+    try:
+        browser_evidence = json.loads(browser_evidence_path.read_text(encoding="utf-8"))
+        pending: list[object] = [browser_evidence]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                pending.extend(value.keys())
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
+            elif isinstance(value, str) and (
+                Path(value).is_absolute() or re.match(r"^[A-Za-z]:[/\\]", value)
+            ):
+                failures.append("absolute path in browser E2E evidence")
+                break
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        failures.append(f"invalid browser E2E path evidence: {exc}")
+
     manifest_path = ROOT / "output" / "evidence" / "release_verification.json"
     if manifest_path.exists() and not args.allow_pending_manifest:
         try:
@@ -238,6 +266,7 @@ def main() -> None:
             expected_artifacts = {
                 "output/pdf/nightingale_continuum_technical_brief.pdf",
                 "output/evidence/backend_coverage.json",
+                "output/evidence/browser_e2e.json",
                 "output/evidence/frontend-coverage/coverage-final.json",
                 "output/evidence/frontend-coverage/coverage-summary.json",
                 "output/evidence/dependency_security.json",
