@@ -42,6 +42,9 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "S", "SIM"]
 ignore = ["S101"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
 [tool.coverage.run]
 branch = true
 source = ["app"]
