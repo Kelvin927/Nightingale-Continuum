@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_PATHS = {
     "README.md",
     "ATTRIBUTION.txt",
+    "requirements-lock.txt",
     "docs/DEMO_RUNBOOK.md",
     "docs/ASSURANCE_REPORT.md",
     "docs/INNOVATION_LEDGER.md",
@@ -52,6 +53,7 @@ REQUIRED_PATHS = {
     "scripts/normalize_frontend_coverage.py",
     "scripts/benchmark_cold_start.py",
     "scripts/release_manifest.py",
+    "scripts/verify_python_lock.py",
 }
 TEXT_SUFFIXES = {
     ".css",
@@ -140,6 +142,17 @@ def main() -> None:
     if "synthetic=True" not in seed:
         failures.append("seed data is not explicitly marked synthetic")
 
+    lock_lines = [
+        line.strip()
+        for line in (ROOT / "requirements-lock.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    lock_names = [re.split(r"==", line, maxsplit=1)[0].lower() for line in lock_lines]
+    if any(not re.fullmatch(r"[A-Za-z0-9_.-]+==[^=\s]+", line) for line in lock_lines):
+        failures.append("Python dependency lock contains a non-exact or invalid requirement")
+    if len(lock_names) != len(set(lock_names)):
+        failures.append("Python dependency lock contains duplicate packages")
+
     evidence_checks = {
         "backend_coverage.json": lambda payload: (
             payload["totals"]["percent_statements_covered"] == 100.0
@@ -161,7 +174,10 @@ def main() -> None:
         "dependency_security.json": lambda payload: (
             payload["passed"]
             and payload["python"]["known_vulnerabilities"] == 0
+            and payload["python"]["dependencies_audited"] == len(lock_lines)
+            and payload["python"]["editable_packages_skipped"] == 1
             and payload["frontend"]["known_vulnerabilities"] == 0
+            and payload["frontend"]["dependencies_audited"] == 198
         ),
         "mutation_testing.json": lambda payload: (
             payload["acceptance"]["passed"]

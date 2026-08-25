@@ -21,9 +21,10 @@ help:
 
 setup:
 	python3 -m venv .venv
-	.venv/bin/python -m pip install --upgrade pip
-	.venv/bin/python -m pip install -e 'backend[dev]'
-	.venv/bin/python -m pip install -r requirements-artifacts.txt
+	.venv/bin/python -m pip install --upgrade pip==26.2.1
+	.venv/bin/python -m pip install -c requirements-lock.txt -e 'backend[dev]'
+	.venv/bin/python -m pip install -c requirements-lock.txt -r requirements-artifacts.txt
+	.venv/bin/python scripts/verify_python_lock.py
 	npm --prefix frontend ci
 
 api:

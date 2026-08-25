@@ -18,7 +18,7 @@ Nightingale Continuum is a candidate-build prototype for a shared clinical narra
 
 ## Five-minute local start
 
-Requirements: Python 3.12+, Node 24+, and npm 11+.
+Requirements: Python 3.12+, Node 24+, and npm 11+. Python build tooling and the complete 74-package third-party environment are exactly constrained in `backend/pyproject.toml` and `requirements-lock.txt`; npm uses `package-lock.json`.
 
 ```bash
 make setup
@@ -55,6 +55,7 @@ make verify
 
 This runs:
 
+- exact installed-Python-graph verification against the 74-package constraints lock;
 - Ruff check and format verification with warnings promoted to errors in Python tests;
 - 124 Python tests, including every brief-required filename and deterministic property tests;
 - exact 100 percent backend statement and branch coverage gates;

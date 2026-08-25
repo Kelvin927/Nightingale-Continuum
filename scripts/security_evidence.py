@@ -63,6 +63,13 @@ def main() -> int:
     python_vulnerabilities = sum(
         len(dependency.get("vulns", [])) for dependency in python_audit["dependencies"]
     )
+    python_dependencies_audited = sum(
+        "skip_reason" not in dependency for dependency in python_audit["dependencies"]
+    )
+    python_editable_skipped = sum(
+        dependency.get("skip_reason") == "distribution marked as editable"
+        for dependency in python_audit["dependencies"]
+    )
     frontend_severity = frontend_audit["metadata"]["vulnerabilities"]
     frontend_vulnerabilities = sum(
         count for severity, count in frontend_severity.items() if severity != "total"
@@ -80,7 +87,8 @@ def main() -> int:
         "passed": passed,
         "python": {
             "audit_tool": "pip-audit 2.10.1",
-            "dependencies_audited": len(python_audit["dependencies"]),
+            "dependencies_audited": python_dependencies_audited,
+            "editable_packages_skipped": python_editable_skipped,
             "known_vulnerabilities": python_vulnerabilities,
             "exit_code": python_audit_code,
             "scope": "Installed local environment excluding editable project package",
@@ -124,7 +132,7 @@ def main() -> int:
         )
     print(
         "Dependency security evidence passed: "
-        f"{len(python_audit['dependencies'])} Python packages and "
+        f"{python_dependencies_audited} third-party Python packages and "
         f"{frontend_audit['metadata']['dependencies']['total']} frontend dependencies, "
         "zero known vulnerabilities."
     )

@@ -6,6 +6,7 @@ if [[ ! -x .venv/bin/python ]]; then
   exit 2
 fi
 
+.venv/bin/python scripts/verify_python_lock.py
 .venv/bin/ruff check --config backend/pyproject.toml backend/app backend/tests scripts
 .venv/bin/ruff format --config backend/pyproject.toml --check backend/app backend/tests scripts
 NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/pytest backend/tests -W error \
