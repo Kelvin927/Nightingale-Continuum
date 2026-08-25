@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
+from functools import cache
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -9,7 +11,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
-OUTPUT = Path("output/pdf/nightingale_continuum_technical_brief.pdf")
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT = ROOT / "output" / "pdf" / "nightingale_continuum_technical_brief.pdf"
+EVIDENCE = ROOT / "output" / "evidence"
 PAGE_WIDTH, PAGE_HEIGHT = letter
 
 INK = HexColor("#17363A")
@@ -26,6 +30,18 @@ AMBER = HexColor("#9A640E")
 AMBER_PALE = HexColor("#F9EFD9")
 BLUE_PALE = HexColor("#E8EFF5")
 PURPLE_PALE = HexColor("#F0EAF3")
+
+
+@cache
+def measured_metrics() -> dict[str, str]:
+    warm = json.loads((EVIDENCE / "glance_benchmark.json").read_text(encoding="utf-8"))
+    coverage = json.loads((EVIDENCE / "backend_coverage.json").read_text(encoding="utf-8"))
+    return {
+        "warm_success": (f"{warm['samples_successful']} / {warm['samples_requested']}"),
+        "warm_median": f"{warm['latency_ms']['median']:.3f} ms",
+        "warm_p95": f"{warm['latency_ms']['p95']:.3f} ms",
+        "backend_coverage": (f"{coverage['totals']['percent_statements_covered']:.0f}%"),
+    }
 
 
 def wrapped_lines(text: str, font: str, size: float, width: float) -> list[str]:
@@ -118,9 +134,7 @@ def page_header(pdf: canvas.Canvas, page: int, section: str) -> None:
     pdf.setFont("Helvetica-Bold", 6.5)
     pdf.drawString(54, PAGE_HEIGHT - 32, section.upper())
     pdf.setFont("Helvetica", 7)
-    pdf.drawRightString(
-        PAGE_WIDTH - 36, PAGE_HEIGHT - 27, f"TECHNICAL BRIEF  |  {page} / 3"
-    )
+    pdf.drawRightString(PAGE_WIDTH - 36, PAGE_HEIGHT - 27, f"TECHNICAL BRIEF  |  {page} / 3")
 
 
 def page_footer(pdf: canvas.Canvas) -> None:
@@ -183,6 +197,7 @@ def arrow(pdf: canvas.Canvas, x1: float, y1: float, x2: float, y2: float) -> Non
 
 
 def page_one(pdf: canvas.Canvas) -> None:
+    metrics = measured_metrics()
     page_header(pdf, 1, "Product and architecture")
     pdf.setFillColor(CANVAS)
     pdf.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT - 48, fill=1, stroke=0)
@@ -191,7 +206,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     pdf.drawString(36, 706, "Compress attention. Never compress evidence.")
     draw_text(
         pdf,
-        "A role-aware longitudinal care note where every high-priority statement carries its reason, trust state, and exact immutable source.",
+        (
+            "A role-aware longitudinal care note where every high-priority statement "
+            "carries its reason, trust state, and exact immutable source."
+        ),
         36,
         687,
         520,
@@ -208,7 +226,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     pdf.drawString(51, 622, "The glance is an attention budget, not a second timeline.")
     draw_text(
         pdf,
-        "Three bounded lanes - Act now, Watch, Awaiting - expose the next action while one click restores the full evidence trail.",
+        (
+            "Three bounded lanes - Act now, Watch, Awaiting - expose the next action "
+            "while one click restores the full evidence trail."
+        ),
         51,
         606,
         495,
@@ -216,9 +237,9 @@ def page_one(pdf: canvas.Canvas) -> None:
         color=HexColor("#C2D8D2"),
     )
 
-    metric_card(pdf, 36, 518, 170, "1.779 ms", "Measured warm-path P95")
-    metric_card(pdf, 221, 518, 170, "22 tests", "Backend and required micro-tests")
-    metric_card(pdf, 406, 518, 170, "87%", "Backend line coverage")
+    metric_card(pdf, 36, 518, 170, metrics["warm_p95"], "Measured warm-path P95")
+    metric_card(pdf, 221, 518, 170, "122 tests", "Backend and required micro-tests")
+    metric_card(pdf, 406, 518, 170, metrics["backend_coverage"], "Line + branch coverage")
 
     section_label(pdf, "Architecture", 36, 493)
     round_box(pdf, 36, 341, 540, 137, fill=HexColor("#EDF2EE"), radius=10)
@@ -294,7 +315,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     y = 281
     y = draw_bullet(
         pdf,
-        "Exact-source highlights bind an entry, immutable version, offsets, quote, source URI, and SHA-256 hash.",
+        (
+            "Exact-source highlights bind an entry, immutable version, offsets, quote, "
+            "source URI, and SHA-256 hash."
+        ),
         51,
         y,
         500,
@@ -302,7 +326,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     y -= 8
     y = draw_bullet(
         pdf,
-        "AI content starts as proposed; human-authored, staff-verified, clinician-confirmed, and superseded are visible states.",
+        (
+            "AI content starts as proposed; human-authored, staff-verified, "
+            "clinician-confirmed, and superseded are visible states."
+        ),
         51,
         y,
         500,
@@ -310,7 +337,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     y -= 8
     y = draw_bullet(
         pdf,
-        "Server-side clinic and role policies protect every object. Patient responses are built from an allow-list projection.",
+        (
+            "Server-side clinic and role policies protect every object. Patient responses "
+            "are built from an allow-list projection."
+        ),
         51,
         y,
         500,
@@ -318,7 +348,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     y -= 8
     y = draw_bullet(
         pdf,
-        "Revert appends a version. Same-section stale writes return 409; independent role-owned sections do not overwrite.",
+        (
+            "Revert appends a version. Same-section stale writes return 409; independent "
+            "role-owned sections do not overwrite."
+        ),
         51,
         y,
         500,
@@ -326,11 +359,21 @@ def page_one(pdf: canvas.Canvas) -> None:
     y -= 8
     y = draw_bullet(
         pdf,
-        "The Delta Lens reports temporal change and uncertainty, but refuses a causal claim without an estimand and design.",
+        (
+            "The Delta Lens reports temporal change and uncertainty, but refuses a causal "
+            "claim without an estimand and design."
+        ),
         51,
         y,
         500,
     )
+    pdf.setFillColor(TEAL)
+    pdf.setFont("Helvetica-Bold", 6.8)
+    pdf.drawString(51, 158, "VERIFICATION CONTRACT")
+    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage")
+    metric_card(pdf, 177, 92, 116, "900", "Property examples")
+    metric_card(pdf, 303, 92, 116, "0 known", "Dependency advisories")
+    metric_card(pdf, 429, 92, 116, "All listed", "Mutation survivors")
     page_footer(pdf)
 
 
@@ -343,7 +386,11 @@ def page_two(pdf: canvas.Canvas) -> None:
     pdf.drawString(36, 706, "A shared narrative with immutable ownership.")
     draw_text(
         pdf,
-        "Full snapshots favor auditability, deterministic revert, and stable provenance in the prototype. Production can add delta compression behind the same logical model.",
+        (
+            "Full snapshots favor auditability, deterministic revert, and stable provenance "
+            "in the prototype. Production can add delta compression behind the same "
+            "logical model."
+        ),
         36,
         686,
         530,
@@ -446,7 +493,10 @@ def page_two(pdf: canvas.Canvas) -> None:
     y -= 6
     y = draw_bullet(
         pdf,
-        "3. Validate expected version. A stale same-section mutation fails with a deterministic conflict receipt.",
+        (
+            "3. Validate expected version. A stale same-section mutation fails with a "
+            "deterministic conflict receipt."
+        ),
         51,
         y,
         500,
@@ -454,7 +504,10 @@ def page_two(pdf: canvas.Canvas) -> None:
     y -= 6
     y = draw_bullet(
         pdf,
-        "4. Append the snapshot, move the current pointer, append metadata-only audit, and refresh the glance projection.",
+        (
+            "4. Append the snapshot, move the current pointer, append metadata-only audit, "
+            "and refresh the glance projection."
+        ),
         51,
         y,
         500,
@@ -462,7 +515,10 @@ def page_two(pdf: canvas.Canvas) -> None:
     y -= 6
     draw_bullet(
         pdf,
-        "5. Serialize only fields allowed for the actor; provenance resolution repeats scope and integrity checks.",
+        (
+            "5. Serialize only fields allowed for the actor; provenance resolution repeats "
+            "scope and integrity checks."
+        ),
         51,
         y,
         500,
@@ -471,6 +527,7 @@ def page_two(pdf: canvas.Canvas) -> None:
 
 
 def page_three(pdf: canvas.Canvas) -> None:
+    metrics = measured_metrics()
     page_header(pdf, 3, "Learning, privacy, evidence")
     pdf.setFillColor(CANVAS)
     pdf.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT - 48, fill=1, stroke=0)
@@ -479,7 +536,10 @@ def page_three(pdf: canvas.Canvas) -> None:
     pdf.drawString(36, 706, "Learning earns influence under safety constraints.")
     draw_text(
         pdf,
-        "The adaptive system changes ranking, not clinical facts. New policies stay in shadow mode until support, uncertainty, and governance are credible.",
+        (
+            "The adaptive system changes ranking, not clinical facts. New policies stay in "
+            "shadow mode until support, uncertainty, and governance are credible."
+        ),
         36,
         686,
         530,
@@ -531,7 +591,10 @@ def page_three(pdf: canvas.Canvas) -> None:
     pdf.drawString(331, 612, "No estimate yet")
     draw_text(
         pdf,
-        "The seeded build correctly reports insufficient interaction data instead of manufacturing uplift.",
+        (
+            "The seeded build correctly reports insufficient interaction data instead of "
+            "manufacturing uplift."
+        ),
         331,
         595,
         225,
@@ -543,7 +606,10 @@ def page_three(pdf: canvas.Canvas) -> None:
     pdf.drawString(331, 548, "REQUIRED DIAGNOSTICS")
     draw_text(
         pdf,
-        "Propensity overlap - effective sample size - DR uncertainty - assumptions - policy version",
+        (
+            "Propensity overlap - effective sample size - DR uncertainty - assumptions - "
+            "policy version"
+        ),
         331,
         533,
         220,
@@ -566,15 +632,9 @@ def page_three(pdf: canvas.Canvas) -> None:
         "Synthetic capture only",
         fill=CRITICAL_PALE,
     )
-    diagram_node(
-        pdf, 161, 382, 92, 48, "Redact", "Names, IDs, phone, email", fill=AMBER_PALE
-    )
-    diagram_node(
-        pdf, 272, 382, 92, 48, "Draft", "Local provider; AI proposed", fill=PURPLE_PALE
-    )
-    diagram_node(
-        pdf, 383, 382, 92, 48, "Human review", "Accept, reject, pin", fill=TEAL_PALE
-    )
+    diagram_node(pdf, 161, 382, 92, 48, "Redact", "Names, IDs, phone, email", fill=AMBER_PALE)
+    diagram_node(pdf, 272, 382, 92, 48, "Draft", "Local provider; AI proposed", fill=PURPLE_PALE)
+    diagram_node(pdf, 383, 382, 92, 48, "Human review", "Accept, reject, pin", fill=TEAL_PALE)
     diagram_node(pdf, 494, 382, 68, 48, "Evidence", "Exact span", fill=BLUE_PALE)
     arrow(pdf, 143, 406, 158, 406)
     arrow(pdf, 254, 406, 269, 406)
@@ -582,7 +642,11 @@ def page_three(pdf: canvas.Canvas) -> None:
     arrow(pdf, 476, 406, 491, 406)
     draw_text(
         pdf,
-        "Decay applies to recomputable derived caches. Immutable versions, audit metadata, open tasks, conflicts, pins, allergies, medication safety, and active critical evidence remain protected.",
+        (
+            "Decay applies to recomputable derived caches. Immutable versions, audit "
+            "metadata, open tasks, conflicts, pins, allergies, medication safety, and "
+            "active critical evidence remain protected."
+        ),
         51,
         365,
         505,
@@ -592,9 +656,9 @@ def page_three(pdf: canvas.Canvas) -> None:
 
     section_label(pdf, "Measured evidence and trade-offs", 36, 318)
     round_box(pdf, 36, 214, 540, 89, fill=PAPER, radius=10)
-    metric_card(pdf, 48, 232, 112, "600 / 600", "Warm reads succeeded")
-    metric_card(pdf, 171, 232, 112, "1.491 ms", "Local median")
-    metric_card(pdf, 294, 232, 112, "1.779 ms", "Local P95")
+    metric_card(pdf, 48, 232, 112, metrics["warm_success"], "Warm reads succeeded")
+    metric_card(pdf, 171, 232, 112, metrics["warm_median"], "Local median")
+    metric_card(pdf, 294, 232, 112, metrics["warm_p95"], "Local P95")
     metric_card(pdf, 417, 232, 147, "P95 <= 300 ms", "Brief constraint passed")
     pdf.setFillColor(MUTED)
     pdf.setFont("Helvetica", 6)
@@ -617,7 +681,7 @@ def page_three(pdf: canvas.Canvas) -> None:
             "https://doi.org/10.6028/NIST.AI.600-1",
         ),
         (
-            "[5] Dai et al., AI-scribe safety signals, ML4H 2025",
+            "[5] Dai et al., AI-scribe safety signals, arXiv 2025",
             "https://arxiv.org/abs/2512.04118",
         ),
         (
@@ -660,7 +724,9 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "AUTHORIZATION",
         "MATRIX",
         "Learning earns influence",
-        "1.779 ms",
+        measured_metrics()["warm_p95"],
+        "122 tests",
+        "100%",
         "Synthetic data only",
     ]
     extracted = "\n".join(page.extract_text() or "" for page in reader.pages)

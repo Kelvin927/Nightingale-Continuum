@@ -55,13 +55,15 @@ make verify
 
 This runs:
 
-- Ruff check and format verification;
-- 22 Python tests, including every brief-required filename;
-- a minimum 85 percent backend line-coverage gate;
-- React component tests;
-- TypeScript production build;
-- high-severity npm dependency audit;
-- Git whitespace checks.
+- Ruff check and format verification with warnings promoted to errors in Python tests;
+- 122 Python tests, including every brief-required filename and deterministic property tests;
+- exact 100 percent backend statement and branch coverage gates;
+- 40 Vitest tests with exact 100 percent statement, branch, function, and line coverage gates;
+- automated axe accessibility checks for the role views and modal/drawer states;
+- Python and npm advisory audits plus CycloneDX software bills of materials;
+- cold-construction and warm-path performance evidence with zero tolerated failures;
+- mutation testing across six critical domain modules, with every survivor retained in evidence;
+- TypeScript production build, release-package audit, and Git whitespace checks.
 
 With the API running, measure the warm read path:
 
@@ -69,7 +71,7 @@ With the API running, measure the warm read path:
 make benchmark
 ```
 
-The committed local benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.491 ms, P95 1.779 ms, and P99 2.026 ms. This is an explicit local approximation, not a production-network latency claim. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json).
+The committed local benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.365 ms, P95 2.343 ms, and P99 3.252 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with P95 36.277 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
 
 Browser tests are defined for desktop Chromium and Pixel 7-sized mobile Chromium:
 
@@ -139,6 +141,8 @@ PROJECT_STATE.md        Recovery checkpoint and verification status
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - architecture, schema, ranking, and retention decisions
 - [`docs/INNOVATION_LEDGER.md`](docs/INNOVATION_LEDGER.md) - standards, research-derived methods, prototype contributions, and non-claims
 - [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) - deterministic video script and final human checks
+- [`docs/ASSURANCE_REPORT.md`](docs/ASSURANCE_REPORT.md) - machine-verifiable quality evidence and honest residual boundaries
+- [`docs/MUTATION_REVIEW.md`](docs/MUTATION_REVIEW.md) - unadjusted survivor ledger and equivalence rationale
 - [`docs/references/EVIDENCE_REGISTRY.md`](docs/references/EVIDENCE_REGISTRY.md) - primary research and official standards
 - [`ATTRIBUTION.txt`](ATTRIBUTION.txt) - libraries, models, assets, and licenses
 - [`output/pdf/nightingale_continuum_technical_brief.pdf`](output/pdf/nightingale_continuum_technical_brief.pdf) - concise 3-page technical brief
