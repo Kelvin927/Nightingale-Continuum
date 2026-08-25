@@ -34,6 +34,7 @@ web:
 test:
 	NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/pytest backend/tests -W error --cov=backend/app --cov-branch --cov-fail-under=100
 	npm --prefix frontend run test:coverage
+	.venv/bin/python scripts/normalize_frontend_coverage.py
 
 lint:
 	.venv/bin/ruff check --config backend/pyproject.toml backend/app backend/tests scripts

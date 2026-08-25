@@ -46,6 +46,7 @@ REQUIRED_PATHS = {
     "frontend/src/accessibility.test.tsx",
     "scripts/security_evidence.py",
     "scripts/mutation_evidence.py",
+    "scripts/normalize_frontend_coverage.py",
     "scripts/benchmark_cold_start.py",
     "scripts/release_manifest.py",
 }
@@ -180,6 +181,27 @@ def main() -> None:
                 failures.append(f"evidence acceptance failed: output/evidence/{relative}")
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             failures.append(f"invalid evidence file output/evidence/{relative}: {exc}")
+
+    for name in ("coverage-final.json", "coverage-summary.json"):
+        coverage_path = ROOT / "output" / "evidence" / "frontend-coverage" / name
+        try:
+            coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+            for source, details in coverage.items():
+                if source != "total" and Path(source).is_absolute():
+                    failures.append(f"absolute source path in frontend coverage evidence: {name}")
+                    break
+                if isinstance(details, dict):
+                    reported_path = details.get("path")
+                    if isinstance(reported_path, str) and (
+                        Path(reported_path).is_absolute()
+                        or re.match(r"^[A-Za-z]:[/\\]", reported_path)
+                    ):
+                        failures.append(
+                            f"absolute reported path in frontend coverage evidence: {name}"
+                        )
+                        break
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            failures.append(f"invalid frontend coverage path evidence {name}: {exc}")
 
     manifest_path = ROOT / "output" / "evidence" / "release_verification.json"
     if manifest_path.exists() and not args.allow_pending_manifest:

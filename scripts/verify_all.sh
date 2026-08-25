@@ -13,6 +13,7 @@ NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/pytest backend/t
   --cov-report=json:output/evidence/backend_coverage.json --cov-fail-under=100
 npm --prefix frontend run lint
 npm --prefix frontend run test:coverage
+.venv/bin/python scripts/normalize_frontend_coverage.py
 npm --prefix frontend run build
 .venv/bin/python scripts/security_evidence.py
 .venv/bin/python scripts/benchmark_cold_start.py

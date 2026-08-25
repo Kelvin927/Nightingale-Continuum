@@ -71,7 +71,7 @@ With the API running, measure the warm read path:
 make benchmark
 ```
 
-The committed clean-room benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.306 ms, P95 1.571 ms, and P99 1.724 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with P95 36.675 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
+The committed clean-room benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.102 ms, P95 1.179 ms, and P99 1.457 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 28.724 ms and P95 30.656 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
 
 Browser tests are defined for desktop Chromium and Pixel 7-sized mobile Chromium:
 
