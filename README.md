@@ -56,7 +56,7 @@ make verify
 This runs:
 
 - Ruff check and format verification with warnings promoted to errors in Python tests;
-- 122 Python tests, including every brief-required filename and deterministic property tests;
+- 123 Python tests, including every brief-required filename and deterministic property tests;
 - exact 100 percent backend statement and branch coverage gates;
 - 40 Vitest tests with exact 100 percent statement, branch, function, and line coverage gates;
 - automated axe accessibility checks for the role views and modal/drawer states;

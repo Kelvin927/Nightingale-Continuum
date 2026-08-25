@@ -54,6 +54,7 @@ from app.redaction import Finding, _known_name_findings, _normalize_findings, re
 from app.retention import apply_retention_policy, recommended_tier
 from app.schemas import ScribeIngestRequest
 from app.scribe import LocalDeterministicScribe, ingest_scribe
+from app.seed import seed_database
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import create_engine, select
@@ -503,6 +504,15 @@ def test_shadow_policy_single_balanced_and_overlap_warning_paths(app, identities
         warning = evaluate_shadow_policy(session, clinician.clinic_id)
         assert warning.overlap_warning is True
         assert warning.status == "exploratory"
+
+
+def test_seed_database_is_idempotent_once_a_clinic_exists(app):
+    with app.state.database.session() as session:
+        before = list(session.scalars(select(Patient.id).order_by(Patient.id)))
+        seed_database(session)
+        after = list(session.scalars(select(Patient.id).order_by(Patient.id)))
+        assert before
+        assert after == before
 
 
 def test_redaction_empty_short_names_invalid_and_overlapping_findings():

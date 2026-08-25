@@ -238,7 +238,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     )
 
     metric_card(pdf, 36, 518, 170, metrics["warm_p95"], "Measured warm-path P95")
-    metric_card(pdf, 221, 518, 170, "122 tests", "Backend and required micro-tests")
+    metric_card(pdf, 221, 518, 170, "123 tests", "Backend and required micro-tests")
     metric_card(pdf, 406, 518, 170, metrics["backend_coverage"], "Line + branch coverage")
 
     section_label(pdf, "Architecture", 36, 493)
@@ -725,7 +725,7 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "MATRIX",
         "Learning earns influence",
         measured_metrics()["warm_p95"],
-        "122 tests",
+        "123 tests",
         "100%",
         "Synthetic data only",
     ]
