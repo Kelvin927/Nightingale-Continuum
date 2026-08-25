@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from app.models import GlanceProjection, User
 from sqlalchemy import select
+
+from app.models import GlanceProjection, User
 
 from .conftest import auth, entry_named, workspace
 

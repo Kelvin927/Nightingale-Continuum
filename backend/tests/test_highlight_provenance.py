@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from app.models import Highlight, ProvenanceSpan
 from sqlalchemy import select
+
+from app.models import Highlight, ProvenanceSpan
 
 from .conftest import auth
 

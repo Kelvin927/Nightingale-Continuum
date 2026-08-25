@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from app import main as main_module
-from app.models import AuditEvent, Entry, GlanceProjection, Highlight, ProvenanceSpan
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+
+from app import main as main_module
+from app.models import AuditEvent, Entry, GlanceProjection, Highlight, ProvenanceSpan
 
 from .conftest import auth
 

@@ -3,6 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
+from sqlalchemy import create_engine, select
+
 from app import database as database_module
 from app.audit import (
     GENESIS_HASH,
@@ -55,9 +59,6 @@ from app.retention import apply_retention_policy, recommended_tier
 from app.schemas import ScribeIngestRequest
 from app.scribe import LocalDeterministicScribe, ingest_scribe
 from app.seed import seed_database
-from fastapi import HTTPException
-from pydantic import ValidationError
-from sqlalchemy import create_engine, select
 
 
 def _actor(session, user_id: str) -> User:

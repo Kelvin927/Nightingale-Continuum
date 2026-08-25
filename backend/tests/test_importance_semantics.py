@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
+
 from app import importance as importance_module
 from app.care import create_entry, current_version
 from app.constants import POLICY_VERSION
@@ -29,7 +31,6 @@ from app.models import (
 )
 from app.provenance import create_span
 from app.seed import OTHER_PATIENT_ID
-from sqlalchemy import select
 
 
 def test_generated_highlights_and_source_spans_have_an_exact_persisted_contract(

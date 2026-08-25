@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from app.models import Highlight
 from sqlalchemy import select
+
+from app.models import Highlight
 
 from .conftest import auth
 

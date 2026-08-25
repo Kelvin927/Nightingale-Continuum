@@ -54,7 +54,6 @@ def append_audit(
         select(AuditEvent)
         .where(AuditEvent.clinic_id == clinic_id)
         .order_by(AuditEvent.sequence.desc())
-        .limit(1)
     )
     sequence = 1 if previous is None else previous.sequence + 1
     previous_hash = GENESIS_HASH if previous is None else previous.event_hash
@@ -144,6 +143,8 @@ def verify_audit_chain(session: Session, clinic_id: str) -> AuditVerification:
 
 def audit_count(session: Session, clinic_id: str) -> int:
     return int(
-        session.scalar(select(func.count(AuditEvent.id)).where(AuditEvent.clinic_id == clinic_id))
+        session.scalar(
+            select(func.count()).select_from(AuditEvent).where(AuditEvent.clinic_id == clinic_id)
+        )
         or 0
     )

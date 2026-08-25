@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 from datetime import UTC, datetime, timedelta
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from app.audit import _canonical_json
 from app.care import content_hash, version_diff
 from app.constants import RISK_WEIGHT
@@ -10,8 +13,6 @@ from app.evaluation import _target_probability
 from app.importance import base_score
 from app.models import EntryVersion
 from app.redaction import Finding, _normalize_findings, redact_text
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 DETERMINISTIC = settings(max_examples=150, derandomize=True, deadline=None)
 ASCII_WORD = st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=2, max_size=16)

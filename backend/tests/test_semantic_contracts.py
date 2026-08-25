@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import select
+
 from app import audit as audit_module
 from app import care as care_module
 from app import importance as importance_module
@@ -51,7 +53,6 @@ from app.redaction import (
     _normalize_findings,
     redact_text,
 )
-from sqlalchemy import select
 
 
 def test_redaction_contract_is_exact_at_name_boundaries_overlap_and_receipt_version():
@@ -788,7 +789,28 @@ def test_audit_verification_orders_by_sequence_and_count_is_exact(app):
         session.flush()
 
         assert audit_count(session, clinic.id) == 2
-        assert verify_audit_chain(session, clinic.id) == AuditVerification(True, 2)
+
+        class OrderRecordingSession:
+            def scalars(self, statement):
+                assert "ORDER BY audit_events.sequence" in str(statement)
+                return session.scalars(statement)
+
+        assert verify_audit_chain(OrderRecordingSession(), clinic.id) == AuditVerification(True, 2)
+
+
+def test_posterior_create_flag_rejects_non_boolean_values(app, identities):
+    with app.state.database.session() as session:
+        actor = session.get(User, identities["clinician"])
+        assert actor is not None
+        with pytest.raises(TypeError) as error:
+            _posterior(
+                session,
+                clinic_id=actor.clinic_id,
+                actor_role=actor.role,
+                feature="invalid-create-flag",
+                create=None,  # type: ignore[arg-type]
+            )
+        assert error.value.args == ("create must be a boolean",)
 
 
 def test_provenance_resolves_full_source_boundaries_and_exact_objects(app, identities, patient_id):

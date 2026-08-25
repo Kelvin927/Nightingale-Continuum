@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from sqlalchemy import select
+
 from app.models import ProvenanceSpan
 from app.redaction import redact_text
-from sqlalchemy import select
 
 from .conftest import auth
 

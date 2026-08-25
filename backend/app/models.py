@@ -17,6 +17,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from .constants import POLICY_VERSION
+
 
 def new_id() -> str:
     return str(uuid4())
@@ -193,7 +195,7 @@ class Highlight(Base):
     adaptive_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     rank_score: Mapped[float] = mapped_column(Float, nullable=False)
     score_factors: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    policy_version: Mapped[str] = mapped_column(String(40), nullable=False, default="safe-beta-v1")
+    policy_version: Mapped[str] = mapped_column(String(40), nullable=False, default=POLICY_VERSION)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 

@@ -78,18 +78,12 @@ def _known_name_findings(text: str, known_names: list[str]) -> list[Finding]:
 
 
 def _normalize_findings(findings: list[Finding]) -> list[Finding]:
-    ordered = sorted(
-        findings, key=lambda item: (item.start, -(item.end - item.start), -item.confidence)
-    )
+    ordered = sorted(findings, key=lambda item: item.start)
     normalized: list[Finding] = []
     for candidate in ordered:
         if candidate.start >= candidate.end:
             continue
-        overlapping = [
-            existing
-            for existing in normalized
-            if not (candidate.end <= existing.start or candidate.start >= existing.end)
-        ]
+        overlapping = [existing for existing in normalized if candidate.start < existing.end]
         if not overlapping:
             normalized.append(candidate)
             continue

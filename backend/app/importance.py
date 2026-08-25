@@ -57,7 +57,7 @@ def _classify_sentence(sentence: str) -> tuple[str, list[str], str, str] | None:
             reason = "A new or worsening symptom may change the care plan"
     if any(term in lowered for term in ("follow-up", "follow up", "lab", "pending", "await")):
         tags.add("follow_up")
-        if RISK_ORDER[risk_level] > RISK_ORDER["medium"]:
+        if risk_level == "low":
             risk_level = "medium"
             title = "Open follow-up"
             reason = "An unresolved follow-up may require ownership or action"
@@ -92,7 +92,7 @@ def base_score(
         "unresolved_action": 2.0 if unresolved_action else 0.0,
         "explicit_pin": 1.25 if explicitly_pinned else 0.0,
     }
-    return round(sum(factors.values()), 4), factors
+    return sum(factors.values()), factors
 
 
 def _posterior(
@@ -103,6 +103,8 @@ def _posterior(
     feature: str,
     create: bool,
 ) -> FeaturePosterior | None:
+    if not isinstance(create, bool):
+        raise TypeError("create must be a boolean")
     item = session.scalar(
         select(FeaturePosterior).where(
             FeaturePosterior.clinic_id == clinic_id,
@@ -115,8 +117,6 @@ def _posterior(
             clinic_id=clinic_id,
             actor_role=actor_role,
             feature=feature,
-            alpha=2.0,
-            beta=2.0,
         )
         session.add(item)
         session.flush()
@@ -169,8 +169,6 @@ def generate_highlights_for_entry(
     highlights: list[Highlight] = []
     for match in SENTENCE_PATTERN.finditer(version.content):
         sentence = match.group().strip()
-        if not sentence:
-            continue
         leading_space = len(match.group()) - len(match.group().lstrip())
         start = match.start() + leading_space
         end = start + len(sentence)
@@ -223,9 +221,8 @@ def generate_highlights_for_entry(
             status="suggested" if entry.owner_role == "system" else "accepted",
             base_score=score,
             adaptive_score=learned,
-            rank_score=round(score + learned, 4),
+            rank_score=score + learned,
             score_factors=factors,
-            policy_version=POLICY_VERSION,
             created_at=entry.created_at,
         )
         session.add(highlight)
@@ -311,7 +308,7 @@ def refresh_adaptive_scores(session: Session, clinic_id: str, actor_role: str) -
             features=highlight.entity_tags,
         )
         highlight.adaptive_score = learned
-        highlight.rank_score = round(highlight.base_score + learned, 4)
+        highlight.rank_score = highlight.base_score + learned
 
 
 def _rank_key(highlight: Highlight) -> tuple[int, int, float, datetime]:

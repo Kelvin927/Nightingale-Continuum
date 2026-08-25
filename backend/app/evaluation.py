@@ -59,13 +59,12 @@ def evaluate_shadow_policy(session: Session, clinic_id: str) -> PolicyEvaluation
 
     rewards = [item.reward for item in records]
     outcome_mean = sum(rewards) / len(rewards)
-    weights = [
-        _target_probability(item.context) / max(0.01, item.display_propensity) for item in records
-    ]
-    contributions = [
-        outcome_mean + weight * (item.reward - outcome_mean)
-        for item, weight in zip(records, weights, strict=True)
-    ]
+    weights: list[float] = []
+    contributions: list[float] = []
+    for item in records:
+        weight = _target_probability(item.context) / max(0.01, item.display_propensity)
+        weights.append(weight)
+        contributions.append(outcome_mean + weight * (item.reward - outcome_mean))
     estimate = sum(contributions) / len(contributions)
     if len(contributions) > 1:
         variance = sum((value - estimate) ** 2 for value in contributions) / (
