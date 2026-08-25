@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nightingale-continuum-api"
+version = "0.1.0"
+description = "Evidence-bound longitudinal care-note prototype"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.118.3",
+  "httpx==0.28.1",
+  "pydantic==2.12.0",
+  "sqlalchemy==2.0.44",
+  "uvicorn[standard]==0.37.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.0.1",
+  "pytest-cov==7.0.0",
+  "ruff==0.14.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --disable-warnings"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101"]
+
