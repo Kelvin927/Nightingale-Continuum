@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -14,9 +16,20 @@ REQUIRED_PATHS = {
     "README.md",
     "ATTRIBUTION.txt",
     "docs/DEMO_RUNBOOK.md",
+    "docs/ASSURANCE_REPORT.md",
     "docs/INNOVATION_LEDGER.md",
+    "docs/MUTATION_REVIEW.md",
     "docs/references/EVIDENCE_REGISTRY.md",
     "output/evidence/glance_benchmark.json",
+    "output/evidence/cold_start_benchmark.json",
+    "output/evidence/dependency_security.json",
+    "output/evidence/backend_coverage.json",
+    "output/evidence/frontend-coverage/coverage-summary.json",
+    "output/evidence/mutation_testing.json",
+    "output/evidence/python_dependency_audit.json",
+    "output/evidence/python_sbom.cdx.json",
+    "output/evidence/frontend_dependency_audit.json",
+    "output/evidence/frontend_sbom.cdx.json",
     "output/evidence/release_verification.json",
     "output/pdf/nightingale_continuum_technical_brief.pdf",
     "backend/tests/test_rbac_scope.py",
@@ -24,6 +37,17 @@ REQUIRED_PATHS = {
     "backend/tests/test_highlight_provenance.py",
     "backend/tests/test_concurrent_edits.py",
     "backend/tests/test_self_learning_importance.py",
+    "backend/tests/test_api_assurance.py",
+    "backend/tests/test_domain_assurance.py",
+    "backend/tests/test_failure_injection.py",
+    "backend/tests/test_importance_semantics.py",
+    "backend/tests/test_property_invariants.py",
+    "backend/tests/test_semantic_contracts.py",
+    "frontend/src/accessibility.test.tsx",
+    "scripts/security_evidence.py",
+    "scripts/mutation_evidence.py",
+    "scripts/benchmark_cold_start.py",
+    "scripts/release_manifest.py",
 }
 TEXT_SUFFIXES = {
     ".css",
@@ -62,7 +86,7 @@ CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
 def git_paths(*arguments: str) -> list[str]:
     result = subprocess.run(  # noqa: S603
-        ["git", *arguments],
+        ["/usr/bin/git", *arguments],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -72,6 +96,13 @@ def git_paths(*arguments: str) -> list[str]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Audit the Nightingale release package")
+    parser.add_argument(
+        "--allow-pending-manifest",
+        action="store_true",
+        help="Use only while verifying the source commit before clean-room evidence exists",
+    )
+    args = parser.parse_args()
     failures: list[str] = []
     tracked = set(git_paths("ls-files"))
     untracked = git_paths("ls-files", "--others", "--exclude-standard")
@@ -105,13 +136,90 @@ def main() -> None:
     if "synthetic=True" not in seed:
         failures.append("seed data is not explicitly marked synthetic")
 
+    evidence_checks = {
+        "backend_coverage.json": lambda payload: (
+            payload["totals"]["percent_statements_covered"] == 100.0
+            and payload["totals"]["percent_branches_covered"] == 100.0
+            and payload["totals"]["missing_lines"] == 0
+            and payload["totals"]["missing_branches"] == 0
+        ),
+        "frontend-coverage/coverage-summary.json": lambda payload: all(
+            payload["total"][metric]["pct"] == 100
+            for metric in ("lines", "statements", "functions", "branches")
+        ),
+        "dependency_security.json": lambda payload: (
+            payload["passed"]
+            and payload["python"]["known_vulnerabilities"] == 0
+            and payload["frontend"]["known_vulnerabilities"] == 0
+        ),
+        "mutation_testing.json": lambda payload: (
+            payload["acceptance"]["passed"]
+            and payload["acceptance"]["all_mutants_checked"]
+            and payload["totals"]["raw_score_percent"] >= 85.0
+            and not payload["unchecked_mutants"]
+        ),
+        "cold_start_benchmark.json": lambda payload: (
+            payload["acceptance"]["passed"]
+            and not payload["failures"]
+            and payload["samples_successful"] == payload["samples_requested"]
+        ),
+        "glance_benchmark.json": lambda payload: (
+            payload["acceptance"]["passed"]
+            and not payload["failures"]
+            and payload["samples_successful"] == payload["samples_requested"]
+        ),
+    }
+    for relative, predicate in evidence_checks.items():
+        evidence_path = ROOT / "output" / "evidence" / relative
+        if not evidence_path.exists():
+            failures.append(f"missing evidence file: output/evidence/{relative}")
+            continue
+        try:
+            payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+            if not predicate(payload):
+                failures.append(f"evidence acceptance failed: output/evidence/{relative}")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            failures.append(f"invalid evidence file output/evidence/{relative}: {exc}")
+
+    manifest_path = ROOT / "output" / "evidence" / "release_verification.json"
+    if manifest_path.exists() and not args.allow_pending_manifest:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            source_commit = manifest["verified_source_commit"]
+            if manifest["schema_version"] != 2:
+                failures.append("release manifest schema_version must be 2")
+            if not manifest["clean_room"]["passed"]:
+                failures.append("release manifest does not record a passing clean-room run")
+            if not all(
+                manifest["clean_room"][key]
+                for key in (
+                    "fresh_git_clone",
+                    "fresh_python_venv",
+                    "npm_ci",
+                    "make_verify",
+                    "source_working_tree_clean_before_manifest",
+                )
+            ):
+                failures.append("release manifest clean-room evidence is incomplete")
+            ancestor = subprocess.run(  # noqa: S603 - fixed Git executable and manifest hash
+                ["/usr/bin/git", "merge-base", "--is-ancestor", source_commit, "HEAD"],
+                cwd=ROOT,
+                check=False,
+            )
+            if ancestor.returncode != 0:
+                failures.append("verified source commit is not an ancestor of HEAD")
+            if any(
+                not re.fullmatch(r"[0-9a-f]{64}", value) for value in manifest["artifacts"].values()
+            ):
+                failures.append("release manifest contains an invalid SHA-256 digest")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            failures.append(f"invalid release verification manifest: {exc}")
+
     brief_path = ROOT / "output/pdf/nightingale_continuum_technical_brief.pdf"
     if brief_path.exists():
         reader = PdfReader(str(brief_path))
         if len(reader.pages) != 3:
-            failures.append(
-                f"technical brief must have 3 pages, found {len(reader.pages)}"
-            )
+            failures.append(f"technical brief must have 3 pages, found {len(reader.pages)}")
         extracted = "\n".join(page.extract_text() or "" for page in reader.pages)
         for statement in ("Synthetic data only", "Prototype - not for clinical use"):
             if statement not in extracted:
@@ -123,7 +231,8 @@ def main() -> None:
 
     print(
         "Release audit passed: tracked files intentional, required artifacts present, "
-        "no common secrets or CJK project text, synthetic marker present, PDF valid."
+        "coverage/security/mutation/performance evidence accepted, no common secrets "
+        "or CJK project text, synthetic marker present, PDF valid."
     )
 
 

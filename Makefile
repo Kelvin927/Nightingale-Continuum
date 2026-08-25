@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help setup test lint build brief benchmark verify api web clean-demo-data
+.PHONY: help setup test lint build brief benchmark benchmark-cold security mutation verify api web clean-demo-data
 
 help:
 	@echo "Nightingale Continuum"
@@ -12,7 +12,10 @@ help:
 	@echo "  make lint       Run Python and TypeScript static checks"
 	@echo "  make build      Build the production client"
 	@echo "  make brief      Build and structurally verify the 3-page technical brief"
-	@echo "  make benchmark  Measure the warm-path glance endpoint"
+	@echo "  make benchmark  Measure the warm-path glance endpoint (API must be running)"
+	@echo "  make benchmark-cold  Measure deterministic local API construction"
+	@echo "  make security   Audit Python/npm dependencies and build SBOMs"
+	@echo "  make mutation   Run critical-module mutation testing and export evidence"
 	@echo "  make verify     Run all non-browser release gates"
 
 setup:
@@ -29,12 +32,12 @@ web:
 	npm --prefix frontend run dev -- --host 127.0.0.1
 
 test:
-	PYTHONPATH=backend .venv/bin/pytest backend/tests
-	npm --prefix frontend run test
+	PYTHONPATH=backend .venv/bin/pytest backend/tests -W error --cov=backend/app --cov-branch --cov-fail-under=100
+	npm --prefix frontend run test:coverage
 
 lint:
-	.venv/bin/ruff check backend/app backend/tests scripts
-	.venv/bin/ruff format --check backend/app backend/tests scripts
+	.venv/bin/ruff check --config backend/pyproject.toml backend/app backend/tests scripts
+	.venv/bin/ruff format --config backend/pyproject.toml --check backend/app backend/tests scripts
 	npm --prefix frontend run lint
 
 build:
@@ -45,6 +48,16 @@ brief:
 
 benchmark:
 	.venv/bin/python scripts/benchmark_glance.py --output output/evidence/glance_benchmark.json
+
+benchmark-cold:
+	.venv/bin/python scripts/benchmark_cold_start.py
+
+security:
+	.venv/bin/python scripts/security_evidence.py
+
+mutation:
+	cd backend && ../.venv/bin/mutmut run
+	.venv/bin/python scripts/mutation_evidence.py
 
 verify:
 	./scripts/verify_all.sh

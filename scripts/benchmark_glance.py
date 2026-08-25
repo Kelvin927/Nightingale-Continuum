@@ -10,7 +10,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 
 
 def percentile(values: list[float], probability: float) -> float:
@@ -54,7 +54,7 @@ def benchmark(
                     if not payload.get("groups"):
                         failures.append({"sample": index, "status": "missing_groups"})
                     durations.append(elapsed_ms)
-            except Exception as exc:  # benchmark evidence must retain failure class
+            except Exception as exc:  # noqa: BLE001 - evidence must retain any failure class
                 failures.append({"sample": index, "status": type(exc).__name__})
 
     if not durations:
@@ -97,9 +97,7 @@ def benchmark(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Benchmark the Nightingale glance read path"
-    )
+    parser = argparse.ArgumentParser(description="Benchmark the Nightingale glance read path")
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--samples", type=int, default=600)
     parser.add_argument("--warmups", type=int, default=50)

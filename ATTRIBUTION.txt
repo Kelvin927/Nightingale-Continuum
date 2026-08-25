@@ -4,23 +4,23 @@ and frontend/package-lock.json. Full transitive package metadata remains in the 
 
 RUNTIME LIBRARIES
 
-FastAPI 0.118.3 - MIT License
+FastAPI 0.141.1 - MIT License
 https://github.com/fastapi/fastapi
 
-Starlette 0.48.0 - BSD 3-Clause License
+Starlette 1.6.0 - BSD 3-Clause License
 https://github.com/encode/starlette
 
-Pydantic 2.12.0 and pydantic-core 2.41.1 - MIT License
+Pydantic 2.13.4 and pydantic-core 2.46.4 - MIT License
 https://github.com/pydantic/pydantic
 
-SQLAlchemy 2.0.44 - MIT License
+SQLAlchemy 2.0.52 - MIT License
 https://github.com/sqlalchemy/sqlalchemy
 
-Uvicorn 0.37.0 - BSD 3-Clause License
+Uvicorn 0.52.4 - BSD 3-Clause License
 https://github.com/encode/uvicorn
 
-HTTPX 0.28.1 and HTTPCore 1.0.9 - BSD 3-Clause License
-https://github.com/encode/httpx
+HTTPX2 2.10.0 and HTTPCore2 2.10.0 - BSD 3-Clause License
+https://github.com/pydantic/httpx
 
 React 19.2.8 and React DOM 19.2.8 - MIT License
 https://github.com/facebook/react
@@ -39,22 +39,38 @@ https://github.com/microsoft/TypeScript
 Vitest 4.1.11 - MIT License
 https://github.com/vitest-dev/vitest
 
+Vitest V8 Coverage 4.1.11 - MIT License
+https://github.com/vitest-dev/vitest
+
 Testing Library React 16.3.2 and jest-dom 7.0.1 - MIT License
 https://github.com/testing-library
 
-jsdom 29.0.1 - MIT License
+jsdom 29.1.1 - MIT License
 https://github.com/jsdom/jsdom
+
+jest-axe 11.0.0 - MIT License; axe-core 4.13.0 - Mozilla Public License 2.0
+https://github.com/NickColley/jest-axe
+https://github.com/dequelabs/axe-core
 
 Playwright Test 1.62.1 - Apache License 2.0
 https://github.com/microsoft/playwright
 
-pytest 9.0.1 - MIT License
+pytest 9.1.1 - MIT License
 https://github.com/pytest-dev/pytest
 
-pytest-cov 7.0.0 - MIT License
+pytest-cov 7.1.0 - MIT License
 https://github.com/pytest-dev/pytest-cov
 
-Ruff 0.14.1 - MIT License
+Hypothesis 6.165.10 - Mozilla Public License 2.0
+https://github.com/HypothesisWorks/hypothesis
+
+mutmut 3.7.0 - BSD 3-Clause License
+https://github.com/boxed/mutmut
+
+pip-audit 2.10.1 - Apache License 2.0
+https://github.com/pypa/pip-audit
+
+Ruff 0.16.4 - MIT License
 https://github.com/astral-sh/ruff
 
 ReportLab 5.0.1 - BSD License
