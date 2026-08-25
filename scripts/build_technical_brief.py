@@ -238,7 +238,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     )
 
     metric_card(pdf, 36, 518, 170, metrics["warm_p95"], "Measured warm-path P95")
-    metric_card(pdf, 221, 518, 170, "123 tests", "Backend and required micro-tests")
+    metric_card(pdf, 221, 518, 170, "124 tests", "Backend and required micro-tests")
     metric_card(pdf, 406, 518, 170, metrics["backend_coverage"], "Line + branch coverage")
 
     section_label(pdf, "Architecture", 36, 493)
@@ -373,7 +373,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage")
     metric_card(pdf, 177, 92, 116, "900", "Property examples")
     metric_card(pdf, 303, 92, 116, "0 known", "Dependency advisories")
-    metric_card(pdf, 429, 92, 116, "All listed", "Mutation survivors")
+    metric_card(pdf, 429, 92, 116, "0", "Mutation survivors")
     page_footer(pdf)
 
 
@@ -725,7 +725,7 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "MATRIX",
         "Learning earns influence",
         measured_metrics()["warm_p95"],
-        "123 tests",
+        "124 tests",
         "100%",
         "Synthetic data only",
     ]
