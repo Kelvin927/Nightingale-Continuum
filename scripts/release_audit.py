@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -234,6 +235,35 @@ def main() -> None:
                 not re.fullmatch(r"[0-9a-f]{64}", value) for value in manifest["artifacts"].values()
             ):
                 failures.append("release manifest contains an invalid SHA-256 digest")
+            expected_artifacts = {
+                "output/pdf/nightingale_continuum_technical_brief.pdf",
+                "output/evidence/backend_coverage.json",
+                "output/evidence/frontend-coverage/coverage-final.json",
+                "output/evidence/frontend-coverage/coverage-summary.json",
+                "output/evidence/dependency_security.json",
+                "output/evidence/python_dependency_audit.json",
+                "output/evidence/frontend_dependency_audit.json",
+                "output/evidence/python_sbom.cdx.json",
+                "output/evidence/frontend_sbom.cdx.json",
+                "output/evidence/mutation_testing.json",
+                "output/evidence/glance_benchmark.json",
+                "output/evidence/cold_start_benchmark.json",
+            }
+            if set(manifest["artifacts"]) != expected_artifacts:
+                failures.append("release manifest artifact set is incomplete or unexpected")
+            else:
+                for relative, expected_digest in manifest["artifacts"].items():
+                    actual_digest = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+                    if actual_digest != expected_digest:
+                        failures.append(f"release artifact digest mismatch: {relative}")
+            manifest_commit = manifest["manifest_created_from_commit"]
+            manifest_ancestor = subprocess.run(  # noqa: S603 - fixed Git executable and hash
+                ["/usr/bin/git", "merge-base", "--is-ancestor", manifest_commit, "HEAD"],
+                cwd=ROOT,
+                check=False,
+            )
+            if manifest_ancestor.returncode != 0:
+                failures.append("manifest creation commit is not an ancestor of HEAD")
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             failures.append(f"invalid release verification manifest: {exc}")
 
