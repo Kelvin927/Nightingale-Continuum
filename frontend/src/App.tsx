@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertCircle,
@@ -109,6 +109,24 @@ export default function App() {
   const currentPatient = workspace?.patient ?? patients.find((patient) => patient.id === patientId) ?? null;
   const currentRole = viewer?.role ?? selectedIdentity?.role ?? "clinician";
   const RoleIcon = roleIcons[currentRole];
+  const actionContext = useRef({
+    userId,
+    patientId,
+    role: currentRole,
+    noteDialog,
+    commentEntry,
+    historyEntry,
+    scribeOpen,
+  });
+  actionContext.current = {
+    userId,
+    patientId,
+    role: currentRole,
+    noteDialog,
+    commentEntry,
+    historyEntry,
+    scribeOpen,
+  };
 
   const collaborator = useMemo(() => {
     const targetRole = currentRole === "staff" ? "clinician" : "staff";
@@ -132,10 +150,12 @@ export default function App() {
     setDelta(nextDelta);
   }, []);
 
-  const reload = useCallback(async () => {
-    if (!userId || !patientId) return;
-    await loadWorkspace(userId, patientId, currentRole);
-  }, [currentRole, loadWorkspace, patientId, userId]);
+  const reload = useCallback(
+    async (activeUser: string, activePatient: string, activeRole: Role) => {
+      await loadWorkspace(activeUser, activePatient, activeRole);
+    },
+    [loadWorkspace],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -155,6 +175,10 @@ export default function App() {
     setLoading(true);
     setError(null);
     setActiveSource(null);
+    setPatientId(null);
+    setWorkspace(null);
+    setGlance(null);
+    setDelta(null);
     Promise.all([api.me(userId), api.patients(userId)])
       .then(async ([nextViewer, patientPayload]) => {
         if (cancelled) return;
@@ -176,19 +200,20 @@ export default function App() {
     api.policyEvaluation(viewer.id).then(setEvaluation).catch((reason) => setError(friendlyError(reason)));
   }, [page, viewer]);
 
-  const loadAdmin = useCallback(async () => {
-    if (!viewer || viewer.role !== "admin") return;
+  const loadAdmin = useCallback(async (adminId: string) => {
     const [nextVerification, events] = await Promise.all([
-      api.auditVerification(viewer.id),
-      api.auditEvents(viewer.id),
+      api.auditVerification(adminId),
+      api.auditEvents(adminId),
     ]);
     setVerification(nextVerification);
     setAuditEvents(events.events);
-  }, [viewer]);
+  }, []);
 
   useEffect(() => {
-    if (page === "admin") loadAdmin().catch((reason) => setError(friendlyError(reason)));
-  }, [loadAdmin, page]);
+    if (page === "admin" && viewer?.role === "admin") {
+      loadAdmin(viewer.id).catch((reason) => setError(friendlyError(reason)));
+    }
+  }, [loadAdmin, page, viewer]);
 
   function switchIdentity(identity: Identity) {
     localStorage.setItem("continuum-demo-user", identity.id);
@@ -219,10 +244,12 @@ export default function App() {
   }
 
   async function sendFeedback(highlightId: string, action: "accept" | "reject" | "pin") {
+    const active = actionContext.current;
+    if (!active.patientId) return;
     setBusyHighlight(highlightId);
     try {
-      await api.feedback(userId, highlightId, action);
-      await reload();
+      await api.feedback(active.userId, highlightId, action);
+      await reload(active.userId, active.patientId, active.role);
       announce(`${action.charAt(0).toUpperCase() + action.slice(1)} recorded. Similar ranking updated within safety bounds.`);
     } catch (reason) {
       setError(friendlyError(reason));
@@ -232,16 +259,17 @@ export default function App() {
   }
 
   async function saveNote(payload: { title: string; content: string; entryType: string; visibility: string }) {
-    if (!patientId) return;
-    if (noteDialog.entry) {
-      await api.editEntry(userId, noteDialog.entry.id, {
+    const active = actionContext.current;
+    if (!active.patientId || !active.noteDialog.open) return;
+    if (active.noteDialog.entry) {
+      await api.editEntry(active.userId, active.noteDialog.entry.id, {
         content: payload.content,
-        expected_version: noteDialog.entry.current_version,
+        expected_version: active.noteDialog.entry.current_version,
         reason: "Manual role-owned update",
       });
       announce("A new immutable version was saved.");
     } else {
-      await api.createEntry(userId, patientId, {
+      await api.createEntry(active.userId, active.patientId, {
         entry_type: payload.entryType,
         title: payload.title,
         content: payload.content,
@@ -249,18 +277,19 @@ export default function App() {
       });
       announce("The longitudinal entry was added.");
     }
-    await reload();
+    await reload(active.userId, active.patientId, active.role);
   }
 
   async function startThread(title: string, body: string, assignedTo: string | null) {
-    if (!commentEntry) return;
-    await api.createThread(userId, commentEntry.id, {
+    const active = actionContext.current;
+    if (!active.commentEntry || !active.patientId) return;
+    await api.createThread(active.userId, active.commentEntry.id, {
       title,
       body,
       mentions: assignedTo ? [assignedTo] : [],
       assigned_to: assignedTo,
     });
-    await reload();
+    await reload(active.userId, active.patientId, active.role);
     announce("Review thread added with an auditable handoff.");
   }
 
@@ -278,30 +307,43 @@ export default function App() {
   }
 
   async function restoreVersion(targetVersion: number) {
-    if (!historyEntry) return;
-    await api.revert(userId, historyEntry.id, targetVersion, historyEntry.current_version);
-    await reload();
+    const active = actionContext.current;
+    if (!active.historyEntry || !active.patientId) return;
+    await api.revert(
+      active.userId,
+      active.historyEntry.id,
+      targetVersion,
+      active.historyEntry.current_version,
+    );
+    await reload(active.userId, active.patientId, active.role);
     announce(`Version ${targetVersion} restored as a new auditable version.`);
   }
 
   async function submitScribe(interactionType: string, transcript: string) {
-    if (!patientId) return { receipt: {}, flags: [] };
-    const payload = await api.ingestScribe(userId, {
-      patient_id: patientId,
+    const active = actionContext.current;
+    if (!active.patientId || !active.scribeOpen) return { receipt: {}, flags: [] };
+    const payload = await api.ingestScribe(active.userId, {
+      patient_id: active.patientId,
       interaction_type: interactionType,
       transcript,
       source_uri: `session://synthetic/capture-${Date.now()}`,
     });
-    await reload();
+    await reload(active.userId, active.patientId, active.role);
     return { receipt: payload.redaction_receipt.entity_counts, flags: payload.flags };
   }
 
   async function runRetention() {
+    const active = actionContext.current;
+    if (active.role !== "admin") return;
     setRetentionBusy(true);
     try {
-      const result = await api.runRetention(userId);
+      const result = await api.runRetention(active.userId);
       announce(`Retention policy evaluated; ${result.changes.length} tier changes recorded.`);
-      await Promise.all([reload(), loadAdmin()]);
+      const refreshes: Promise<unknown>[] = [loadAdmin(active.userId)];
+      if (active.patientId) {
+        refreshes.push(reload(active.userId, active.patientId, active.role));
+      }
+      await Promise.all(refreshes);
     } catch (reason) {
       setError(friendlyError(reason));
     } finally {

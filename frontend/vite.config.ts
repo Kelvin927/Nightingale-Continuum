@@ -20,5 +20,19 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     globals: true,
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      include: ["src/App.tsx", "src/api.ts", "src/components/**/*.tsx"],
+      exclude: ["src/**/*.test.{ts,tsx}"],
+      reporter: ["text", "json", "json-summary"],
+      reportsDirectory: "../output/evidence/frontend-coverage",
+      reportOnFailure: true,
+      thresholds: {
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
+    },
   },
 });

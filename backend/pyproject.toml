@@ -8,18 +8,22 @@ version = "0.1.0"
 description = "Evidence-bound longitudinal care-note prototype"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi==0.118.3",
-  "httpx==0.28.1",
-  "pydantic==2.12.0",
-  "sqlalchemy==2.0.44",
-  "uvicorn[standard]==0.37.0",
+  "fastapi==0.141.1",
+  "httpx2==2.10.0",
+  "pydantic==2.13.4",
+  "sqlalchemy==2.0.52",
+  "starlette==1.6.0",
+  "uvicorn[standard]==0.52.4",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest==9.0.1",
-  "pytest-cov==7.0.0",
-  "ruff==0.14.1",
+  "hypothesis==6.165.10",
+  "mutmut==3.7.0",
+  "pip-audit==2.10.1",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "ruff==0.16.4",
 ]
 
 [tool.setuptools.packages.find]
@@ -38,3 +42,28 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "S", "SIM"]
 ignore = ["S101"]
 
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+
+[tool.mutmut]
+source_paths = ["app"]
+only_mutate = [
+  "app/audit.py",
+  "app/care.py",
+  "app/evaluation.py",
+  "app/importance.py",
+  "app/provenance.py",
+  "app/redaction.py",
+]
+pytest_add_cli_args = ["-q"]
+pytest_add_cli_args_test_selection = ["tests"]
+mutate_only_covered_lines = true
+timeout_multiplier = 5.0
+timeout_constant = 1.0
+use_setproctitle = false
+on_dependency_change = "rerun"

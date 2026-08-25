@@ -192,7 +192,7 @@ def generate_highlights_for_entry(
             if existing is not None:
                 highlights.append(existing)
                 continue
-        span = create_span(
+        span = existing_span or create_span(
             session,
             entry=entry,
             version=version,

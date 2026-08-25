@@ -573,6 +573,7 @@ def create_app(
             assigned_to=payload.assigned_to,
         )
         session.add(comment)
+        session.flush()
         append_audit(
             session,
             clinic_id=actor.clinic_id,
@@ -607,6 +608,7 @@ def create_app(
             assigned_to=payload.assigned_to,
         )
         session.add(comment)
+        session.flush()
         append_audit(
             session,
             clinic_id=actor.clinic_id,

@@ -132,7 +132,7 @@ export function CommentDialog({
     event.preventDefault();
     setBusy(true);
     try {
-      await onSubmit(title, body, assigned ? collaborator?.id ?? null : null);
+      await onSubmit(title, body, assigned ? collaborator!.id : null);
       onClose();
     } finally {
       setBusy(false);

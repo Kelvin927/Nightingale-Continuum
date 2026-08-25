@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import create_app
 from app.seed import DEMO_USERS, PRIMARY_PATIENT_ID
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture()

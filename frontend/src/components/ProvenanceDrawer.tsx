@@ -10,7 +10,7 @@ export function ProvenanceDrawer({
   onClose: () => void;
 }) {
   return (
-    <aside className="drawer-overlay" role="dialog" aria-modal="true" aria-labelledby="source-title">
+    <div className="drawer-overlay" role="dialog" aria-modal="true" aria-labelledby="source-title">
       <button className="drawer-scrim" aria-label="Close source drawer" onClick={onClose} />
       <div className="provenance-drawer">
         <div className="drawer-header">
@@ -46,7 +46,6 @@ export function ProvenanceDrawer({
           This receipt proves where the displayed statement came from. It does not independently prove that the clinical statement is correct.
         </p>
       </div>
-    </aside>
+    </div>
   );
 }
-

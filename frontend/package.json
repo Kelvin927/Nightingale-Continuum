@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "tsc -b --pretty false",
     "test": "vitest run --coverage.enabled=false",
+    "test:coverage": "vitest run --coverage.enabled=true",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
@@ -23,7 +24,9 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
-    "jsdom": "29.0.1",
+    "@vitest/coverage-v8": "4.1.11",
+    "jest-axe": "11.0.0",
+    "jsdom": "29.1.1",
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "vitest": "4.1.11"
