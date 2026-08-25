@@ -17,6 +17,7 @@ REQUIRED_PATHS = {
     "docs/INNOVATION_LEDGER.md",
     "docs/references/EVIDENCE_REGISTRY.md",
     "output/evidence/glance_benchmark.json",
+    "output/evidence/release_verification.json",
     "output/pdf/nightingale_continuum_technical_brief.pdf",
     "backend/tests/test_rbac_scope.py",
     "backend/tests/test_revision_history.py",
