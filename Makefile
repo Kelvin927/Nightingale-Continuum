@@ -32,7 +32,7 @@ web:
 	npm --prefix frontend run dev -- --host 127.0.0.1
 
 test:
-	PYTHONPATH=backend .venv/bin/pytest backend/tests -W error --cov=backend/app --cov-branch --cov-fail-under=100
+	NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/pytest backend/tests -W error --cov=backend/app --cov-branch --cov-fail-under=100
 	npm --prefix frontend run test:coverage
 
 lint:
@@ -56,7 +56,7 @@ security:
 	.venv/bin/python scripts/security_evidence.py
 
 mutation:
-	cd backend && ../.venv/bin/mutmut run
+	cd backend && NIGHTINGALE_DATABASE_URL=sqlite:// ../.venv/bin/mutmut run
 	.venv/bin/python scripts/mutation_evidence.py
 
 verify:

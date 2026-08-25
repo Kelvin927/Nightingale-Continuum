@@ -8,7 +8,7 @@ fi
 
 .venv/bin/ruff check --config backend/pyproject.toml backend/app backend/tests scripts
 .venv/bin/ruff format --config backend/pyproject.toml --check backend/app backend/tests scripts
-PYTHONPATH=backend .venv/bin/pytest backend/tests -W error \
+NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/pytest backend/tests -W error \
   --cov=backend/app --cov-branch --cov-report=term-missing \
   --cov-report=json:output/evidence/backend_coverage.json --cov-fail-under=100
 npm --prefix frontend run lint
@@ -18,7 +18,7 @@ npm --prefix frontend run build
 .venv/bin/python scripts/benchmark_cold_start.py
 
 api_log="$(mktemp)"
-PYTHONPATH=backend .venv/bin/uvicorn app.main:app \
+NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/uvicorn app.main:app \
   --host 127.0.0.1 --port 8000 --no-access-log >"$api_log" 2>&1 &
 api_pid=$!
 cleanup_api() {
@@ -42,7 +42,7 @@ done
 cleanup_api
 trap - EXIT
 
-(cd backend && ../.venv/bin/mutmut run)
+(cd backend && NIGHTINGALE_DATABASE_URL=sqlite:// ../.venv/bin/mutmut run)
 .venv/bin/python scripts/mutation_evidence.py
 .venv/bin/python scripts/build_technical_brief.py
 .venv/bin/python scripts/release_audit.py --allow-pending-manifest
