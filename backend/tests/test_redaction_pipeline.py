@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from sqlalchemy import select
+
+from app.models import ProvenanceSpan
 from app.redaction import redact_text
 
 from .conftest import auth
@@ -69,3 +72,35 @@ def test_patient_voice_can_only_create_patient_session(client, identities, patie
     )
     assert accepted.status_code == 201
     assert accepted.json()["status"] == "submitted_for_human_review"
+
+
+def test_low_confidence_capture_abstains_without_creating_highlights(
+    client, app, identities, patient_id
+):
+    response = client.post(
+        "/api/v1/scribe/ingest",
+        headers=auth(identities["clinician"]),
+        json={
+            "patient_id": patient_id,
+            "interaction_type": "doctor_consult",
+            "transcript": "[inaudible] dose?",
+            "source_uri": "session://synthetic/low-confidence-abstention",
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert "low_confidence_abstention" in response.json()["flags"]
+
+    workspace = client.get(
+        f"/api/v1/patients/{patient_id}/workspace",
+        headers=auth(identities["clinician"]),
+    ).json()
+    entry = next(item for item in workspace["entries"] if item["id"] == response.json()["entry_id"])
+    assert entry["title"].startswith("AI abstention")
+    assert "No clinical fact has been asserted" in entry["version"]["content"]
+    with app.state.database.session() as session:
+        spans = list(
+            session.scalars(
+                select(ProvenanceSpan).where(ProvenanceSpan.source_entry_id == entry["id"])
+            )
+        )
+        assert spans == []
