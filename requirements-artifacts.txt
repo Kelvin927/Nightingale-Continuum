@@ -1,0 +1,5 @@
+# Submission artifact generation and verification only.
+reportlab==5.0.1
+pypdf==6.16.2
+pdfplumber==0.11.10
+

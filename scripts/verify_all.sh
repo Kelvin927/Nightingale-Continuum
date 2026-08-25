@@ -12,7 +12,8 @@ PYTHONPATH=backend .venv/bin/pytest backend/tests --cov=backend/app --cov-report
 npm --prefix frontend run test
 npm --prefix frontend run build
 npm --prefix frontend audit --audit-level=high
+.venv/bin/python scripts/build_technical_brief.py
+.venv/bin/python scripts/release_audit.py
 git diff --check
 
 echo "All non-browser verification gates passed."
-

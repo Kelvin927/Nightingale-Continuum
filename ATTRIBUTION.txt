@@ -1,0 +1,95 @@
+NIGHTINGALE CONTINUUM - EXTERNAL ATTRIBUTION
+Generated for candidate-build submission. Versions are pinned in backend/pyproject.toml
+and frontend/package-lock.json. Full transitive package metadata remains in the lockfile.
+
+RUNTIME LIBRARIES
+
+FastAPI 0.118.3 - MIT License
+https://github.com/fastapi/fastapi
+
+Starlette 0.48.0 - BSD 3-Clause License
+https://github.com/encode/starlette
+
+Pydantic 2.12.0 and pydantic-core 2.41.1 - MIT License
+https://github.com/pydantic/pydantic
+
+SQLAlchemy 2.0.44 - MIT License
+https://github.com/sqlalchemy/sqlalchemy
+
+Uvicorn 0.37.0 - BSD 3-Clause License
+https://github.com/encode/uvicorn
+
+HTTPX 0.28.1 and HTTPCore 1.0.9 - BSD 3-Clause License
+https://github.com/encode/httpx
+
+React 19.2.8 and React DOM 19.2.8 - MIT License
+https://github.com/facebook/react
+
+Lucide React 1.34.0 - ISC License
+https://github.com/lucide-icons/lucide
+
+BUILD AND TEST TOOLING
+
+Vite 8.2.2 - MIT License
+https://github.com/vitejs/vite
+
+TypeScript 7.0.2 - Apache License 2.0
+https://github.com/microsoft/TypeScript
+
+Vitest 4.1.11 - MIT License
+https://github.com/vitest-dev/vitest
+
+Testing Library React 16.3.2 and jest-dom 7.0.1 - MIT License
+https://github.com/testing-library
+
+jsdom 29.0.1 - MIT License
+https://github.com/jsdom/jsdom
+
+Playwright Test 1.62.1 - Apache License 2.0
+https://github.com/microsoft/playwright
+
+pytest 9.0.1 - MIT License
+https://github.com/pytest-dev/pytest
+
+pytest-cov 7.0.0 - MIT License
+https://github.com/pytest-dev/pytest-cov
+
+Ruff 0.14.1 - MIT License
+https://github.com/astral-sh/ruff
+
+ReportLab 5.0.1 - BSD License
+https://github.com/MrBitBucket/reportlab-mirror
+
+pypdf 6.16.2 - BSD 3-Clause License
+https://github.com/py-pdf/pypdf
+
+pdfplumber 0.11.10 - MIT License
+https://github.com/jsvine/pdfplumber
+
+MODEL AND DATA ATTRIBUTION
+
+No external AI model ships with or is invoked by the default build. The
+LocalDeterministicScribe is original repository code used to demonstrate the
+redaction, schema, provenance, and human-review boundaries without a network call.
+
+All demo patient records, interactions, identifiers, names, notes, comments, tasks,
+and benchmark traffic are fictional synthetic fixtures authored for this project.
+
+ASSETS AND TYPOGRAPHY
+
+No external raster images, stock media, web fonts, or proprietary icon assets ship
+with the application. The interface uses Lucide icons under ISC and operating-system
+font fallbacks (Avenir Next, Avenir, Georgia, and generic system families); font files
+are not redistributed.
+
+SOURCE MATERIAL
+
+The file "2026 72 Hour Build_ Nightingale Candidate Brief.pdf" was supplied to the
+candidate as the project specification. It is retained in the repository only for
+requirements traceability and is not relicensed by this attribution file.
+
+THIRD-PARTY STANDARDS AND RESEARCH
+
+FHIR, W3C PROV-O, NIST AI RMF, OWASP guidance, and cited research papers inform the
+design but are not bundled software dependencies. Human-readable citations and links
+appear in docs/references/EVIDENCE_REGISTRY.md and the technical brief.

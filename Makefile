@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help setup test lint build benchmark verify api web clean-demo-data
+.PHONY: help setup test lint build brief benchmark verify api web clean-demo-data
 
 help:
 	@echo "Nightingale Continuum"
@@ -11,6 +11,7 @@ help:
 	@echo "  make test       Run backend and frontend tests"
 	@echo "  make lint       Run Python and TypeScript static checks"
 	@echo "  make build      Build the production client"
+	@echo "  make brief      Build and structurally verify the 3-page technical brief"
 	@echo "  make benchmark  Measure the warm-path glance endpoint"
 	@echo "  make verify     Run all non-browser release gates"
 
@@ -18,6 +19,7 @@ setup:
 	python3 -m venv .venv
 	.venv/bin/python -m pip install --upgrade pip
 	.venv/bin/python -m pip install -e 'backend[dev]'
+	.venv/bin/python -m pip install -r requirements-artifacts.txt
 	npm --prefix frontend ci
 
 api:
@@ -38,6 +40,9 @@ lint:
 build:
 	npm --prefix frontend run build
 
+brief:
+	.venv/bin/python scripts/build_technical_brief.py
+
 benchmark:
 	.venv/bin/python scripts/benchmark_glance.py --output output/evidence/glance_benchmark.json
 
@@ -46,4 +51,3 @@ verify:
 
 clean-demo-data:
 	@echo "Remove local *.sqlite3 or *.db files manually after confirming their exact paths."
-
