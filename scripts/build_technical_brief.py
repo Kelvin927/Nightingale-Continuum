@@ -643,7 +643,7 @@ def page_three(pdf: canvas.Canvas) -> None:
 
 def build_pdf(path: Path = OUTPUT) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    pdf = canvas.Canvas(str(path), pagesize=letter, pageCompression=1)
+    pdf = canvas.Canvas(str(path), pagesize=letter, pageCompression=1, invariant=1)
     pdf.setTitle("Nightingale Continuum - Technical Brief")
     pdf.setAuthor("Candidate build")
     pdf.setSubject("Architecture, safety, learning, and measurement")
