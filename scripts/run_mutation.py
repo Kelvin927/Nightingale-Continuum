@@ -79,7 +79,7 @@ def main(arguments: list[str] | None = None) -> int:
             "run",
             *(arguments if arguments is not None else sys.argv[1:]),
         ]
-        return subprocess.run(
+        return subprocess.run(  # noqa: S603
             command,
             cwd=BACKEND,
             env=environment,
