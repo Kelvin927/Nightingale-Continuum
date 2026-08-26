@@ -63,7 +63,7 @@ This runs:
 - automated axe accessibility checks for the role views and modal/drawer states;
 - Python and npm advisory audits plus CycloneDX software bills of materials;
 - cold-construction and warm-path performance evidence with zero tolerated failures;
-- mutation testing across six critical domain modules; the clean-room run killed all 1,581 generated mutants;
+- cache-safe mutation testing across six critical domain modules; the runner excludes generated Python bytecode and rebuilds the gitignored mutant workspace before every run, and the clean-room run killed all 1,581 generated mutants;
 - TypeScript production build, release-package audit, and Git whitespace checks.
 
 With the API running, measure the warm read path:

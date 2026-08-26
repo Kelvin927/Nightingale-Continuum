@@ -63,7 +63,7 @@ security:
 	.venv/bin/python scripts/security_evidence.py
 
 mutation:
-	cd backend && NIGHTINGALE_DATABASE_URL=sqlite:// ../.venv/bin/mutmut run
+	.venv/bin/python scripts/run_mutation.py
 	.venv/bin/python scripts/mutation_evidence.py
 
 verify:

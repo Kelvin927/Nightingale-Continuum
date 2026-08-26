@@ -13,6 +13,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
+EXPECTED_CHECKED_BY_MODULE = {
+    "audit": 196,
+    "care": 248,
+    "evaluation": 218,
+    "importance": 701,
+    "provenance": 105,
+    "redaction": 113,
+}
+EXPECTED_TOTAL = sum(EXPECTED_CHECKED_BY_MODULE.values())
 
 
 def main() -> int:
@@ -56,6 +65,10 @@ def main() -> int:
 
     checked = totals["killed"] + totals["survived"]
     score = 100 * totals["killed"] / checked if checked else 0.0
+    checked_by_module = {name: values["checked"] for name, values in modules.items()}
+    scope_baseline_matched = (
+        checked_by_module == EXPECTED_CHECKED_BY_MODULE and totals["total"] == EXPECTED_TOTAL
+    )
     zero_error_outcomes = all(
         totals[key] == 0
         for key in (
@@ -70,6 +83,7 @@ def main() -> int:
     passed = (
         not unchecked
         and checked == totals["total"]
+        and scope_baseline_matched
         and score >= args.minimum_score
         and zero_error_outcomes
     )
@@ -81,6 +95,8 @@ def main() -> int:
             "mutate_only_covered_lines": True,
             "backend_statement_and_branch_coverage_required_percent": 100,
             "minimum_raw_mutation_score_percent": args.minimum_score,
+            "expected_checked_by_module": EXPECTED_CHECKED_BY_MODULE,
+            "expected_total": EXPECTED_TOTAL,
         },
         "totals": {
             **totals,
@@ -94,6 +110,7 @@ def main() -> int:
             "all_mutants_checked": not unchecked and checked == totals["total"],
             "no_timeout_or_invalid_outcomes": zero_error_outcomes,
             "raw_score_threshold_passed": score >= args.minimum_score,
+            "scope_baseline_matched": scope_baseline_matched,
             "passed": passed,
         },
         "interpretation": [
@@ -113,7 +130,8 @@ def main() -> int:
     print(
         f"Mutation evidence: {totals['killed']}/{checked} killed "
         f"({score:.2f}%), {totals['survived']} survivors, "
-        f"{len(unchecked)} unchecked."
+        f"{len(unchecked)} unchecked, scope baseline "
+        f"{'matched' if scope_baseline_matched else 'MISMATCHED'}."
     )
     return 0 if passed else 1
 

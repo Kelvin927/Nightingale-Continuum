@@ -49,6 +49,7 @@ REQUIRED_PATHS = {
     "frontend/src/accessibility.test.tsx",
     "scripts/security_evidence.py",
     "scripts/mutation_evidence.py",
+    "scripts/run_mutation.py",
     "scripts/normalize_browser_e2e.py",
     "scripts/normalize_frontend_coverage.py",
     "scripts/benchmark_cold_start.py",
@@ -88,6 +89,15 @@ SECRET_PATTERNS = {
     "GitHub token": re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),
 }
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+EXPECTED_MUTATION_COUNTS = {
+    "audit": 196,
+    "care": 248,
+    "evaluation": 218,
+    "importance": 701,
+    "provenance": 105,
+    "redaction": 113,
+}
+EXPECTED_MUTATION_TOTAL = sum(EXPECTED_MUTATION_COUNTS.values())
 
 
 def git_paths(*arguments: str) -> list[str]:
@@ -182,6 +192,12 @@ def main() -> None:
         "mutation_testing.json": lambda payload: (
             payload["acceptance"]["passed"]
             and payload["acceptance"]["all_mutants_checked"]
+            and payload["acceptance"]["scope_baseline_matched"]
+            and payload["configuration"]["expected_checked_by_module"] == EXPECTED_MUTATION_COUNTS
+            and payload["configuration"]["expected_total"] == EXPECTED_MUTATION_TOTAL
+            and {name: values["checked"] for name, values in payload["modules"].items()}
+            == EXPECTED_MUTATION_COUNTS
+            and payload["totals"]["total"] == EXPECTED_MUTATION_TOTAL
             and payload["totals"]["raw_score_percent"] >= 85.0
             and not payload["unchecked_mutants"]
         ),

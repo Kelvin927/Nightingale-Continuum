@@ -44,7 +44,7 @@ done
 cleanup_api
 trap - EXIT
 
-(cd backend && NIGHTINGALE_DATABASE_URL=sqlite:// ../.venv/bin/mutmut run)
+.venv/bin/python scripts/run_mutation.py
 .venv/bin/python scripts/mutation_evidence.py
 .venv/bin/python scripts/build_technical_brief.py
 .venv/bin/python scripts/release_audit.py --allow-pending-manifest
