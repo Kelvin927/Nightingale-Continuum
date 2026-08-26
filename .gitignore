@@ -17,6 +17,7 @@ playwright-report/
 test-results/
 mutants/
 .mutmut-cache
+.mutmut-run.lock
 *.sqlite3
 *.db
 tmp/
