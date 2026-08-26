@@ -49,6 +49,7 @@ REQUIRED_PATHS = {
     "frontend/src/accessibility.test.tsx",
     "scripts/security_evidence.py",
     "scripts/mutation_evidence.py",
+    "scripts/run_browser_tests.py",
     "scripts/run_mutation.py",
     "scripts/normalize_browser_e2e.py",
     "scripts/normalize_frontend_coverage.py",

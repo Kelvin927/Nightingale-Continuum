@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const e2eDatabaseUrl = `sqlite:///${join(tmpdir(), `nightingale-e2e-${process.pid}.sqlite3`)}`;
+const e2eApiPort = Number(process.env.NIGHTINGALE_E2E_API_PORT ?? "18000");
+const e2eWebPort = Number(process.env.NIGHTINGALE_E2E_WEB_PORT ?? "18001");
+const e2eApiUrl = `http://127.0.0.1:${e2eApiPort}`;
+const e2eWebUrl = `http://127.0.0.1:${e2eWebPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,7 +22,7 @@ export default defineConfig({
     ["html", { open: "never" }],
   ],
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: e2eWebUrl,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -33,16 +37,16 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `NIGHTINGALE_DATABASE_URL='${e2eDatabaseUrl}' PYTHONPATH=../backend ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000`,
+      command: `NIGHTINGALE_DATABASE_URL='${e2eDatabaseUrl}' PYTHONPATH=../backend ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port ${e2eApiPort}`,
       cwd: ".",
-      url: "http://127.0.0.1:8000/health",
-      reuseExistingServer: true,
+      url: `${e2eApiUrl}/health`,
+      reuseExistingServer: false,
     },
     {
-      command: "npm run dev -- --host 127.0.0.1",
+      command: `VITE_API_TARGET='${e2eApiUrl}' VITE_DEV_PORT='${e2eWebPort}' npm run dev -- --host 127.0.0.1 --strictPort`,
       cwd: ".",
-      url: "http://127.0.0.1:5173",
-      reuseExistingServer: true,
+      url: e2eWebUrl,
+      reuseExistingServer: false,
     },
   ],
 });

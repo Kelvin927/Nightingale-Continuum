@@ -83,7 +83,7 @@ cd ..
 make test-browser
 ```
 
-The committed browser run passes all 5 applicable workflows with zero failures, retries classified as flaky, or skipped cases. Each run uses a unique temporary SQLite database so parallel browser requests cannot touch demo state or share a single in-memory connection.
+The committed browser run passes all 5 applicable workflows with zero failures, retries classified as flaky, or skipped cases. Each run uses unique checkout-owned API/web ports and a temporary SQLite database, so an already-running demo cannot be mistaken for the tested build and parallel requests cannot touch demo state or share a single in-memory connection.
 
 ## Where security is enforced
 

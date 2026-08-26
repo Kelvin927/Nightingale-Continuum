@@ -19,9 +19,11 @@ npm --prefix frontend run build
 .venv/bin/python scripts/security_evidence.py
 .venv/bin/python scripts/benchmark_cold_start.py
 
+nightingale_api_port="$(.venv/bin/python -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+nightingale_api_base_url="http://127.0.0.1:${nightingale_api_port}"
 api_log="$(mktemp)"
 NIGHTINGALE_DATABASE_URL=sqlite:// PYTHONPATH=backend .venv/bin/uvicorn app.main:app \
-  --host 127.0.0.1 --port 8000 --no-access-log >"$api_log" 2>&1 &
+  --host 127.0.0.1 --port "$nightingale_api_port" --no-access-log >"$api_log" 2>&1 &
 api_pid=$!
 cleanup_api() {
   kill "$api_pid" 2>/dev/null || true
@@ -29,8 +31,10 @@ cleanup_api() {
   rm -f "$api_log"
 }
 trap cleanup_api EXIT
+nightingale_api_ready=0
 for _ in {1..100}; do
-  if .venv/bin/python -c 'import httpx2; httpx2.get("http://127.0.0.1:8000/health", timeout=0.2).raise_for_status()' 2>/dev/null; then
+  if NIGHTINGALE_API_BASE_URL="$nightingale_api_base_url" .venv/bin/python -c 'import os, httpx2; httpx2.get(os.environ["NIGHTINGALE_API_BASE_URL"] + "/health", timeout=0.2).raise_for_status()' 2>/dev/null; then
+    nightingale_api_ready=1
     break
   fi
   if ! kill -0 "$api_pid" 2>/dev/null; then
@@ -39,7 +43,13 @@ for _ in {1..100}; do
   fi
   sleep 0.05
 done
+if [[ "$nightingale_api_ready" -ne 1 ]]; then
+  cat "$api_log"
+  echo "Isolated benchmark API did not become ready"
+  exit 1
+fi
 .venv/bin/python scripts/benchmark_glance.py \
+  --base-url "$nightingale_api_base_url" \
   --output output/evidence/glance_benchmark.json
 cleanup_api
 trap - EXIT

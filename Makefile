@@ -39,7 +39,7 @@ test:
 	.venv/bin/python scripts/normalize_frontend_coverage.py
 
 test-browser:
-	npm --prefix frontend run test:e2e
+	.venv/bin/python scripts/run_browser_tests.py
 	.venv/bin/python scripts/normalize_browser_e2e.py
 
 lint:
