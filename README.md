@@ -156,4 +156,4 @@ The repository intentionally contains only the requested submission materials an
 - [`ATTRIBUTION.txt`](ATTRIBUTION.txt) with external libraries, models, assets, and licenses; and
 - [`output/pdf/nightingale_continuum_technical_brief.pdf`](output/pdf/nightingale_continuum_technical_brief.pdf), the required three-page technical brief.
 
-The demo video is submitted separately. Generated coverage, security, mutation, browser, and benchmark evidence is intentionally excluded from Git and produced by `make verify` or GitHub Actions.
+The demo video is submitted separately. Generated coverage, security, mutation, browser, and benchmark evidence is intentionally excluded from Git and produced by `make verify`, `make test-browser`, or GitHub Actions.
