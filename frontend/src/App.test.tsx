@@ -136,6 +136,11 @@ async function renderFor(userId: string) {
   await screen.findByRole("heading", { name: "Maya Chen" });
 }
 
+// This end-to-end component journey covers more than thirty UI and API interactions.
+// The explicit outer bound absorbs CI scheduling variance; each async assertion keeps
+// its shorter Testing Library deadline and still fails close to the responsible action.
+const FULL_CLINICIAN_WORKFLOW_TIMEOUT_MS = 15_000;
+
 test("clinician workflow completes evidence review, provenance, notes, threads, history, scribe, and role switching", async () => {
   await renderFor("user-clinician");
 
@@ -252,7 +257,7 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
   await waitFor(() => expect(mockedApi.me).toHaveBeenCalledWith("user-staff"));
   expect(localStorage.getItem("continuum-demo-user")).toBe("user-staff");
   expect((await screen.findAllByText("Nurse Noor"))[0]).toBeVisible();
-});
+}, FULL_CLINICIAN_WORKFLOW_TIMEOUT_MS);
 
 test("admin workflow verifies audit integrity and runs retention with a refreshed evidence view", async () => {
   await renderFor("user-admin");

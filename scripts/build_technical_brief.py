@@ -147,7 +147,7 @@ def page_footer(pdf: canvas.Canvas) -> None:
         18,
         "Synthetic data only. Prototype - not for clinical use or a compliance claim.",
     )
-    pdf.drawRightString(PAGE_WIDTH - 36, 18, "XIE WEIKUN | SPMS | MSc in Analytics | 27 Aug 2026")
+    pdf.drawRightString(PAGE_WIDTH - 36, 18, "XIE WEIKUN | SPMS | MSc in Analytics | 28 Aug 2026")
 
 
 def metric_card(
