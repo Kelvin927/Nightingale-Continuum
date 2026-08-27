@@ -54,13 +54,14 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     transcript: "Synthetic transcript",
     source_uri: "session://synthetic/1",
   });
+  await api.evidenceReview("user-1", "patient-1", "What changed?");
   await api.policyEvaluation("user-1");
   await api.auditVerification("user-1");
   await api.auditEvents("user-1");
   await api.runRetention("user-1");
 
   const calls = vi.mocked(fetch).mock.calls;
-  expect(calls).toHaveLength(18);
+  expect(calls).toHaveLength(19);
   expect(calls.map(([path]) => path)).toEqual([
     "/api/v1/demo/identities",
     "/api/v1/me",
@@ -76,6 +77,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "/api/v1/entries/entry-1/revert",
     "/api/v1/entries/entry-1/comments",
     "/api/v1/scribe/ingest",
+    "/api/v1/review/query",
     "/api/v1/research/policy-evaluation",
     "/api/v1/admin/audit/verify",
     "/api/v1/admin/audit/events?limit=30",
@@ -91,7 +93,11 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     expected_version: 2,
     reason: "Restore version 1 after review",
   }));
-  expect(calls[17][1]?.body).toBe(JSON.stringify({ as_of: "2026-08-26T12:00:00.000Z" }));
+  expect(calls[14][1]).toMatchObject({
+    method: "POST",
+    body: JSON.stringify({ patient_id: "patient-1", question: "What changed?" }),
+  });
+  expect(calls[18][1]?.body).toBe(JSON.stringify({ as_of: "2026-08-26T12:00:00.000Z" }));
 });
 
 test("API errors keep status and support string, object, and invalid JSON details", async () => {

@@ -1,9 +1,12 @@
+"""Expose the role-scoped FastAPI surface and transactional care workflows."""
+
 from __future__ import annotations
 
 import os
 from collections.abc import Iterator
 from dataclasses import asdict
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -57,11 +60,13 @@ from .policy import (
 )
 from .provenance import InvalidProvenanceError, resolve_span
 from .retention import apply_retention_policy
+from .review import build_evidence_review
 from .schemas import (
     CreateCommentRequest,
     CreateEntryRequest,
     CreateThreadRequest,
     EditEntryRequest,
+    EvidenceReviewRequest,
     FeedbackRequest,
     ResolveThreadRequest,
     RetentionRunRequest,
@@ -587,6 +592,8 @@ def create_app(
                 "assigned": bool(payload.assigned_to),
             },
         )
+        patient = require_patient(session, actor, entry.patient_id)
+        _refresh_projection(session, patient)
         session.commit()
         return {"id": thread.id, "comment_id": comment.id, "resolved": False}
 
@@ -618,6 +625,9 @@ def create_app(
             object_id=comment.id,
             metadata={"thread_id": thread.id, "mention_count": len(payload.mentions)},
         )
+        entry = require_entry_read(session, actor, thread.entry_id)
+        patient = require_patient(session, actor, entry.patient_id)
+        _refresh_projection(session, patient)
         session.commit()
         return {"id": comment.id, "thread_id": thread.id}
 
@@ -640,6 +650,9 @@ def create_app(
             object_id=thread.id,
             metadata={"resolved": payload.resolved},
         )
+        entry = require_entry_read(session, actor, thread.entry_id)
+        patient = require_patient(session, actor, entry.patient_id)
+        _refresh_projection(session, patient)
         session.commit()
         return {"id": thread.id, "resolved": thread.resolved, "resolved_by": thread.resolved_by}
 
@@ -749,6 +762,40 @@ def create_app(
             "redaction_receipt": receipt_dict(result.receipt),
             "flags": result.flags,
         }
+
+    @app.post(f"{API_PREFIX}/review/query")
+    def evidence_review(
+        payload: EvidenceReviewRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        """Return a role-scoped answer whose clinical claims resolve to exact spans."""
+
+        require_internal_collaboration(actor)
+        patient = require_patient(session, actor, payload.patient_id)
+        result = build_evidence_review(
+            session,
+            clinic_id=actor.clinic_id,
+            patient_id=patient.id,
+            question=payload.question,
+        )
+        append_audit(
+            session,
+            clinic_id=actor.clinic_id,
+            actor_id=actor.id,
+            action="evidence_review.generated",
+            object_type="patient",
+            object_id=patient.id,
+            metadata={
+                "intent": result.intent,
+                "answer_state": result.answer_state,
+                "claim_count": len(result.claims),
+                "question_hash": sha256(payload.question.strip().encode("utf-8")).hexdigest(),
+                "provider": result.provider,
+            },
+        )
+        session.commit()
+        return result.to_dict()
 
     @app.post(f"{API_PREFIX}/admin/retention/run")
     def retention_run(

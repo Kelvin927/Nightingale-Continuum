@@ -1,3 +1,5 @@
+"""Rank source-bound highlights under fixed safety and bounded learning rules."""
+
 from __future__ import annotations
 
 import math
@@ -221,7 +223,7 @@ def generate_highlights_for_entry(
             status="suggested" if entry.owner_role == "system" else "accepted",
             base_score=score,
             adaptive_score=learned,
-            rank_score=score + learned,
+            rank_score=round(score + learned, 4),
             score_factors=factors,
             created_at=entry.created_at,
         )
@@ -308,7 +310,7 @@ def refresh_adaptive_scores(session: Session, clinic_id: str, actor_role: str) -
             features=highlight.entity_tags,
         )
         highlight.adaptive_score = learned
-        highlight.rank_score = highlight.base_score + learned
+        highlight.rank_score = round(highlight.base_score + learned, 4)
 
 
 def _rank_key(highlight: Highlight) -> tuple[int, int, float, datetime]:

@@ -1,3 +1,5 @@
+"""Define the longitudinal record, provenance, learning, and audit schema."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

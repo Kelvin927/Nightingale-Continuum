@@ -14,6 +14,22 @@ test("clinician can understand the glance and resolve an exact source", async ({
   await page.getByRole("button", { name: "Close source drawer" }).last().click();
 });
 
+test("evidence review stays citation-first and opens its immutable source", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Evidence review" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Which medication evidence conflicts?" }).click();
+  await dialog.getByRole("button", { name: "Review evidence" }).click();
+
+  await expect(dialog.getByText(/source-bound signal/)).toBeVisible();
+  await expect(dialog.locator("blockquote").first()).not.toBeEmpty();
+  await expect(dialog.getByText(/no external model call/i)).toBeVisible();
+  await expect(dialog.getByText("Conflict review required")).toBeVisible();
+  await dialog.getByRole("button", { name: "Verify exact source" }).first().click();
+  await expect(page.getByRole("heading", { name: "Verified exact source" })).toBeVisible();
+  await expect(page.getByText("Pointer verified")).toBeVisible();
+});
+
 test("patient projection excludes internal and raw AI content", async ({ page }) => {
   await page.goto("/");
   await page.locator(".role-trigger").click();

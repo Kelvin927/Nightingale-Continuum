@@ -1,3 +1,5 @@
+"""Seed one deterministic, fictional care journey for the local demonstration."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

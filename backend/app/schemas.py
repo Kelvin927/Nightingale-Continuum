@@ -1,3 +1,5 @@
+"""Validate every request at the public API boundary."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
@@ -56,6 +58,11 @@ class ScribeIngestRequest(BaseModel):
         if "://" not in value:
             raise ValueError("source_uri must include a URI scheme")
         return value
+
+
+class EvidenceReviewRequest(BaseModel):
+    patient_id: str
+    question: str = Field(min_length=3, max_length=500)
 
 
 class RetentionRunRequest(BaseModel):

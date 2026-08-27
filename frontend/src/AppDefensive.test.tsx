@@ -95,6 +95,7 @@ vi.mock("./api", () => ({
     revert: vi.fn(),
     createThread: vi.fn(),
     ingestScribe: vi.fn(),
+    evidenceReview: vi.fn(),
     policyEvaluation: vi.fn(),
     auditVerification: vi.fn(),
     auditEvents: vi.fn(),
@@ -165,6 +166,17 @@ beforeEach(() => {
     provider: "local",
     redaction_receipt: { detector_version: "v1", entity_counts: {} },
     flags: [],
+  });
+  mockedApi.evidenceReview.mockResolvedValue({
+    intent: "overview",
+    answer_state: "insufficient_evidence",
+    summary: "No source-bound signal matched this question.",
+    claims: [],
+    open_actions: [],
+    conflicts: [],
+    abstention_reason: "The authorized record does not support a sourced answer.",
+    provider: "local-evidence-reviewer-v1",
+    safety_notice: "Decision support only.",
   });
   mockedApi.auditVerification.mockResolvedValue({
     valid: true,

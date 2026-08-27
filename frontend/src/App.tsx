@@ -32,12 +32,14 @@ import {
 import { DeltaLens } from "./components/DeltaLens";
 import { GlanceBoard } from "./components/GlanceBoard";
 import { ProvenanceDrawer } from "./components/ProvenanceDrawer";
+import { ReviewCopilotDialog } from "./components/ReviewCopilot";
 import { ResearchPanel } from "./components/ResearchPanel";
 import { Timeline } from "./components/Timeline";
 import type {
   AuditEvent,
   AuditVerification,
   DeltaLens as DeltaLensType,
+  EvidenceReview,
   Entry,
   EntryVersion,
   Glance,
@@ -99,6 +101,9 @@ export default function App() {
   const [versions, setVersions] = useState<EntryVersion[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [scribeOpen, setScribeOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewResult, setReviewResult] = useState<EvidenceReview | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<PolicyEvaluation | null>(null);
   const [verification, setVerification] = useState<AuditVerification | null>(null);
@@ -214,6 +219,30 @@ export default function App() {
       loadAdmin(viewer.id).catch((reason) => setError(friendlyError(reason)));
     }
   }, [loadAdmin, page, viewer]);
+
+  useEffect(() => {
+    if (!viewer || !patientId || page !== "care" || glance?.source_revision === undefined) return;
+    let cancelled = false;
+    const activeRevision = glance.source_revision;
+    const timer = window.setInterval(async () => {
+      try {
+        const latest = await api.glance(viewer.id, patientId);
+        if (
+          cancelled
+          || latest.source_revision === undefined
+          || latest.source_revision === activeRevision
+        ) return;
+        await loadWorkspace(viewer.id, patientId, viewer.role);
+        announce("New collaboration evidence synchronized.");
+      } catch {
+        // A transient poll failure must not interrupt the active review session.
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [announce, glance?.source_revision, loadWorkspace, page, patientId, viewer]);
 
   function switchIdentity(identity: Identity) {
     localStorage.setItem("continuum-demo-user", identity.id);
@@ -332,6 +361,18 @@ export default function App() {
     return { receipt: payload.redaction_receipt.entity_counts, flags: payload.flags };
   }
 
+  async function askEvidenceReview(question: string, activePatientId: string) {
+    const active = actionContext.current;
+    setReviewBusy(true);
+    try {
+      setReviewResult(await api.evidenceReview(active.userId, activePatientId, question));
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   async function runRetention() {
     const active = actionContext.current;
     if (active.role !== "admin") return;
@@ -381,7 +422,12 @@ export default function App() {
           <>
             <section className="patient-header">
               <div className="patient-identity"><span className="patient-avatar large">{currentPatient.initials}</span><div><div className="patient-name-line"><h1>{currentPatient.display_name}</h1><span>synthetic</span></div><p>{currentPatient.synthetic_record_number} <i /> DOB {new Date(currentPatient.date_of_birth).toLocaleDateString("en-SG", { day: "2-digit", month: "short", year: "numeric" })} <i /> {currentPatient.pronouns}</p></div></div>
-              <div className="patient-actions"><button className="secondary-button" onClick={() => setScribeOpen(true)}><Mic size={16} />Capture consult</button>{currentRole !== "admin" && <button className="primary-button" onClick={() => setNoteDialog({ open: true, entry: null })}><ClipboardPlus size={16} />{currentRole === "patient" ? "Share an insight" : "Add note"}</button>}</div>
+              <div className="patient-actions">
+                {currentRole !== "patient" && <span className="live-sync"><i />Live evidence sync</span>}
+                {currentRole !== "patient" && <button className="secondary-button" onClick={() => { setReviewResult(null); setReviewOpen(true); }}><Sparkles size={16} />Evidence review</button>}
+                <button className="secondary-button" onClick={() => setScribeOpen(true)}><Mic size={16} />Capture consult</button>
+                {currentRole !== "admin" && <button className="primary-button" onClick={() => setNoteDialog({ open: true, entry: null })}><ClipboardPlus size={16} />{currentRole === "patient" ? "Share an insight" : "Add note"}</button>}
+              </div>
             </section>
 
             <GlanceBoard glance={glance} role={currentRole} busyHighlight={busyHighlight} onSource={openSource} onFeedback={sendFeedback} onTaskSource={scrollToEntry} />
@@ -434,6 +480,7 @@ export default function App() {
       {commentEntry && <CommentDialog entry={commentEntry} collaborator={collaborator} onClose={() => setCommentEntry(null)} onSubmit={startThread} />}
       {historyEntry && <HistoryDialog entry={historyEntry} versions={versions} loading={historyLoading} onClose={() => { setHistoryEntry(null); setVersions([]); }} onRevert={restoreVersion} />}
       {scribeOpen && <ScribeDialog role={currentRole} onClose={() => setScribeOpen(false)} onSubmit={submitScribe} />}
+      {reviewOpen && currentPatient && <ReviewCopilotDialog result={reviewResult} busy={reviewBusy} onClose={() => setReviewOpen(false)} onAsk={(question) => askEvidenceReview(question, currentPatient.id)} onSource={(spanId) => { setReviewOpen(false); void openSource(spanId); }} onTaskSource={(entryId) => { setReviewOpen(false); scrollToEntry(entryId); }} />}
       {toast && <div className="toast" role="status"><ShieldCheck size={17} />{toast}</div>}
     </div>
   );

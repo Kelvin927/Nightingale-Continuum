@@ -1,3 +1,5 @@
+"""Evaluate shadow ranking policies with explicit support and uncertainty checks."""
+
 from __future__ import annotations
 
 import math

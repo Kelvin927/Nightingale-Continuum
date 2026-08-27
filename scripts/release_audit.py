@@ -21,6 +21,7 @@ REQUIRED_PATHS = {
     "docs/ASSURANCE_REPORT.md",
     "docs/INNOVATION_LEDGER.md",
     "docs/MUTATION_REVIEW.md",
+    "docs/SUBMISSION_CHECKLIST.md",
     "docs/references/EVIDENCE_REGISTRY.md",
     "output/evidence/glance_benchmark.json",
     "output/evidence/cold_start_benchmark.json",
@@ -42,11 +43,13 @@ REQUIRED_PATHS = {
     "backend/tests/test_self_learning_importance.py",
     "backend/tests/test_api_assurance.py",
     "backend/tests/test_domain_assurance.py",
+    "backend/tests/test_evidence_review.py",
     "backend/tests/test_failure_injection.py",
     "backend/tests/test_importance_semantics.py",
     "backend/tests/test_property_invariants.py",
     "backend/tests/test_semantic_contracts.py",
     "frontend/src/accessibility.test.tsx",
+    "frontend/src/components/ReviewCopilot.tsx",
     "scripts/security_evidence.py",
     "scripts/mutation_evidence.py",
     "scripts/run_browser_tests.py",
@@ -94,9 +97,10 @@ EXPECTED_MUTATION_COUNTS = {
     "audit": 196,
     "care": 248,
     "evaluation": 218,
-    "importance": 701,
+    "importance": 711,
     "provenance": 105,
     "redaction": 113,
+    "review": 249,
 }
 EXPECTED_MUTATION_TOTAL = sum(EXPECTED_MUTATION_COUNTS.values())
 
@@ -176,7 +180,7 @@ def main() -> None:
             for metric in ("lines", "statements", "functions", "branches")
         ),
         "browser_e2e.json": lambda payload: (
-            payload["stats"]["expected"] == 5
+            payload["stats"]["expected"] == 7
             and payload["stats"]["unexpected"] == 0
             and payload["stats"]["flaky"] == 0
             and payload["stats"]["skipped"] == 0

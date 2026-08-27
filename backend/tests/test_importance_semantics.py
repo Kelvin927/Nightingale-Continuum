@@ -19,6 +19,7 @@ from app.importance import (
     generate_highlights_for_entry,
     ranked_highlights,
     record_feedback,
+    refresh_adaptive_scores,
 )
 from app.models import (
     AuditEvent,
@@ -618,6 +619,46 @@ def test_highlight_generation_handles_whitespace_learning_reuse_and_span_identit
         blank_span = session.get(ProvenanceSpan, blank_prefix[0].provenance_span_id)
         assert blank_span is not None
         assert (blank_span.start_offset, blank_span.quote) == (5, "Medication increased.")
+
+
+def test_rank_scores_are_persisted_at_the_documented_four_decimal_precision(
+    app, identities, patient_id, monkeypatch
+):
+    monkeypatch.setattr(
+        importance_module,
+        "base_score",
+        lambda *args, **kwargs: (1.23456, {"precision_fixture": True}),
+    )
+    monkeypatch.setattr(
+        importance_module,
+        "adaptive_score",
+        lambda *args, **kwargs: 0.00005,
+    )
+    with app.state.database.session() as session:
+        actor = session.get(User, identities["clinician"])
+        patient = session.get(Patient, patient_id)
+        assert actor is not None and patient is not None
+        entry = create_entry(
+            session,
+            actor=actor,
+            clinic_id=patient.clinic_id,
+            patient_id=patient.id,
+            owner_role="clinician",
+            entry_type="clinician_note",
+            title="Rank precision contract",
+            content="Medication increased.",
+            visibility="internal",
+            trust_state="clinician_confirmed",
+            source_uri="session://rank-precision",
+        )
+        generated = generate_highlights_for_entry(session, entry=entry)
+        assert len(generated) == 1
+        assert generated[0].rank_score == 1.2346
+
+        generated[0].rank_score = 0.0
+        refresh_adaptive_scores(session, patient.clinic_id, "clinician")
+        assert generated[0].adaptive_score == 0.00005
+        assert generated[0].rank_score == 1.2346
 
 
 def test_feedback_accepts_staff_full_propensity_and_accumulates_observations(

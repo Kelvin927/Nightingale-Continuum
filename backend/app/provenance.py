@@ -1,3 +1,5 @@
+"""Create and resolve immutable character-level evidence receipts."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

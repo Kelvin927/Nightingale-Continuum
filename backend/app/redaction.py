@@ -1,3 +1,5 @@
+"""Redact synthetic identifiers before text reaches any provider boundary."""
+
 from __future__ import annotations
 
 import hashlib

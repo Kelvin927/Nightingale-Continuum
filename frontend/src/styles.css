@@ -154,7 +154,9 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .patient-name-line span { padding: 3px 6px; color: #5e7772; background: #e2e9e3; border-radius: 5px; font-size: 8px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; }
 .patient-identity p { display: flex; align-items: center; gap: 7px; margin: 3px 0 0; color: #6f817e; font-size: 10px; }
 .patient-identity p i { width: 3px; height: 3px; border-radius: 50%; background: #a1aeaa; }
-.patient-actions { display: flex; gap: 8px; }
+.patient-actions { display: flex; align-items: center; gap: 8px; }
+.live-sync { display: inline-flex; align-items: center; gap: 6px; margin-right: 3px; color: var(--muted); font-size: 0.75rem; font-weight: 700; }
+.live-sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 15%, transparent); }
 .primary-button, .secondary-button, .danger-button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 8px; font-size: 11px; font-weight: 750; cursor: pointer; }
 .primary-button { color: #fff; background: var(--teal); border: 1px solid var(--teal); box-shadow: 0 2px 8px rgb(23 110 112 / 18%); }
 .primary-button:hover { background: #125f61; }
@@ -356,6 +358,51 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .flag-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-bottom: 17px; }
 .flag-list span { padding: 3px 6px; color: #785e32; background: #f8edd7; border-radius: 5px; font-size: 7.5px; }
 
+/* Evidence review keeps generated summaries visually subordinate to their sources. */
+.review-contract { display: flex; align-items: flex-start; gap: 9px; margin-top: 15px; padding: 11px; color: #41635d; background: #e8f2ed; border: 1px solid #d3e5dc; border-radius: 9px; font-size: 9px; line-height: 1.5; }
+.review-contract svg { flex: 0 0 auto; color: var(--teal); }
+.review-contract span { display: grid; gap: 2px; }
+.review-query { display: grid; gap: 9px; margin-top: 14px; }
+.review-query label { display: grid; gap: 6px; color: #536b67; font-size: 9px; font-weight: 800; }
+.review-query label > div { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.review-query input { min-width: 0; padding: 9px 10px; color: #304946; background: #fafbf8; border: 1px solid #d9e2dc; border-radius: 8px; font-size: 11px; font-weight: 500; }
+.review-prompts { display: flex; flex-wrap: wrap; gap: 5px; }
+.review-prompts button { padding: 4px 7px; color: #5b726d; background: #f1f4f0; border: 1px solid #e0e6e1; border-radius: 6px; font-size: 8px; cursor: pointer; }
+.review-prompts button:hover { color: var(--teal); border-color: #b7d3c9; }
+.review-result { display: grid; gap: 14px; margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--line); }
+.review-summary { display: flex; align-items: flex-start; gap: 9px; padding: 11px; border-radius: 9px; }
+.review-summary.state-supported { color: #2d695d; background: #e8f3ed; }
+.review-summary.state-workflow_only, .review-summary.state-insufficient_evidence { color: #795a27; background: var(--amber-pale); }
+.review-summary svg { flex: 0 0 auto; }
+.review-summary > div { display: grid; gap: 2px; }
+.review-summary span { font-size: 7.5px; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
+.review-summary h3 { margin: 0; font-family: Georgia, serif; font-size: 14px; font-weight: 600; }
+.review-summary p { margin: 2px 0 0; font-size: 8.5px; }
+.review-section > h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; color: #415f5b; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; }
+.review-claims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.review-claims article { padding: 10px; background: #f7f8f5; border: 1px solid var(--line); border-radius: 9px; }
+.review-claims article > div { display: flex; align-items: center; gap: 5px; }
+.review-claims article > div > strong { flex: 1; font-size: 9.5px; }
+.risk-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #6c8580; }
+.risk-dot.risk-critical { background: var(--critical); }
+.risk-dot.risk-high { background: #c26b4f; }
+.risk-dot.risk-medium { background: #9a7a22; }
+.review-claims article > p { margin: 7px 0 0; color: #6b7b78; font-size: 8px; line-height: 1.4; }
+.review-claims blockquote { margin: 7px 0; padding: 7px 8px; color: #4d625e; background: #fffaf0; border-left: 2px solid #d9b66b; font-family: Georgia, serif; font-size: 8.5px; line-height: 1.45; }
+.review-claims button, .review-actions button { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: var(--teal); background: transparent; border: 0; font-size: 8px; font-weight: 750; cursor: pointer; }
+.review-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.review-actions article { display: grid; gap: 3px; padding: 9px; background: #eef3f0; border-radius: 8px; }
+.review-actions article > span { color: #7a6541; font-size: 7px; font-weight: 850; text-transform: uppercase; }
+.review-actions article > strong { font-size: 9px; }
+.review-actions article > small { color: #71817d; font-size: 7.5px; }
+.review-actions article > button { margin-top: 4px; }
+.review-conflicts { display: flex; align-items: flex-start; gap: 8px; padding: 10px; color: #7c4039; background: var(--critical-pale); border-radius: 8px; }
+.review-conflicts svg { flex: 0 0 auto; }
+.review-conflicts strong { font-size: 9px; }
+.review-conflicts p { margin: 3px 0 0; font-size: 8px; line-height: 1.4; }
+.review-receipt { display: flex; align-items: center; gap: 6px; color: #71817d; font: 7.5px ui-monospace, monospace; }
+.review-safety-notice { margin: -5px 0 0; color: #84918e; font-size: 7.5px; line-height: 1.45; }
+
 .research-panel, .admin-panel { max-width: 1160px; margin: 0 auto; }
 .research-hero { display: grid; grid-template-columns: 1fr 180px; gap: 25px; align-items: center; padding: 25px; color: #fff; background: var(--teal-dark); border-radius: 16px; box-shadow: var(--shadow-sm); }
 .research-hero .eyebrow { color: #9fcdc2; }
@@ -469,6 +516,7 @@ button:disabled { cursor: wait; opacity: 0.58; }
   .metric-grid, .assumption-panel ol { grid-template-columns: 1fr; }
   .evidence-grid { grid-template-columns: 1fr; }
   .receipt-counts { flex-wrap: wrap; justify-content: center; }
+  .review-query label > div, .review-claims, .review-actions { grid-template-columns: 1fr; }
   .toast { right: 12px; bottom: 12px; left: 12px; }
 }
 

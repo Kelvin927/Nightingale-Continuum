@@ -147,7 +147,7 @@ def page_footer(pdf: canvas.Canvas) -> None:
         18,
         "Synthetic data only. Prototype - not for clinical use or a compliance claim.",
     )
-    pdf.drawRightString(PAGE_WIDTH - 36, 18, "Candidate build | 26 Aug 2026")
+    pdf.drawRightString(PAGE_WIDTH - 36, 18, "XIE WEIKUN | SPMS | MSc in Analytics | 27 Aug 2026")
 
 
 def metric_card(
@@ -238,7 +238,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     )
 
     metric_card(pdf, 36, 518, 170, metrics["warm_p95"], "Measured warm-path P95")
-    metric_card(pdf, 221, 518, 170, "124 tests", "Backend and required micro-tests")
+    metric_card(pdf, 221, 518, 170, "159 tests", "Backend and required micro-tests")
     metric_card(pdf, 406, 518, 170, metrics["backend_coverage"], "Line + branch coverage")
 
     section_label(pdf, "Architecture", 36, 493)
@@ -338,6 +338,17 @@ def page_one(pdf: canvas.Canvas) -> None:
     y = draw_bullet(
         pdf,
         (
+            "Citation-first review returns only authorized claims, exact quotes, actions, "
+            "and conflicts; unsupported questions receive an explicit abstention."
+        ),
+        51,
+        y,
+        500,
+    )
+    y -= 8
+    y = draw_bullet(
+        pdf,
+        (
             "Server-side clinic and role policies protect every object. Patient responses "
             "are built from an allow-list projection."
         ),
@@ -345,7 +356,7 @@ def page_one(pdf: canvas.Canvas) -> None:
         y,
         500,
     )
-    y -= 8
+    y -= 5
     y = draw_bullet(
         pdf,
         (
@@ -356,7 +367,7 @@ def page_one(pdf: canvas.Canvas) -> None:
         y,
         500,
     )
-    y -= 8
+    y -= 5
     y = draw_bullet(
         pdf,
         (
@@ -370,7 +381,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     pdf.setFillColor(TEAL)
     pdf.setFont("Helvetica-Bold", 6.8)
     pdf.drawString(51, 158, "VERIFICATION CONTRACT")
-    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage + 5 E2E")
+    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage + 7 E2E")
     metric_card(pdf, 177, 92, 116, "900", "Property examples")
     metric_card(pdf, 303, 92, 116, "0 known", "Dependency advisories")
     metric_card(pdf, 429, 92, 116, "0", "Mutation survivors")
@@ -441,7 +452,7 @@ def page_two(pdf: canvas.Canvas) -> None:
         arrow(pdf, x1, y1, x2, y2)
 
     section_label(pdf, "Authorization matrix", 36, 422)
-    x0, y0, row_h = 36, 281, 27
+    x0, y0, row_h = 36, 260, 27
     widths = [92, 112, 112, 112, 112]
     headers = ["Object/action", "Patient", "Staff", "Clinician", "Admin"]
     rows = [
@@ -472,9 +483,9 @@ def page_two(pdf: canvas.Canvas) -> None:
     pdf.setStrokeColor(LINE)
     pdf.rect(x0, y0, sum(widths), row_h * (len(rows) + 1), fill=0, stroke=1)
 
-    section_label(pdf, "Atomic integrity path", 36, 259)
-    round_box(pdf, 36, 76, 540, 168, fill=PAPER, radius=10)
-    y = 222
+    section_label(pdf, "Atomic integrity path", 36, 238)
+    round_box(pdf, 36, 76, 540, 147, fill=PAPER, radius=10)
+    y = 201
     y = draw_bullet(
         pdf,
         "1. Resolve actor identity from the server-side membership; ignore client role claims.",
@@ -709,7 +720,8 @@ def build_pdf(path: Path = OUTPUT) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     pdf = canvas.Canvas(str(path), pagesize=letter, pageCompression=1, invariant=1)
     pdf.setTitle("Nightingale Continuum - Technical Brief")
-    pdf.setAuthor("Candidate build")
+    pdf.setAuthor("XIE WEIKUN")
+    pdf.setCreator("Nightingale Continuum reproducible brief builder")
     pdf.setSubject("Architecture, safety, learning, and measurement")
     for page in (page_one, page_two, page_three):
         page(pdf)
@@ -725,8 +737,9 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "MATRIX",
         "Learning earns influence",
         measured_metrics()["warm_p95"],
-        "124 tests",
-        "5 E2E",
+        "159 tests",
+        "7 E2E",
+        "Citation-first review",
         "100%",
         "Synthetic data only",
     ]

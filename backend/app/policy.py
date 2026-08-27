@@ -1,3 +1,5 @@
+"""Enforce deny-by-default role, ownership, patient, and clinic policies."""
+
 from __future__ import annotations
 
 from fastapi import HTTPException, status

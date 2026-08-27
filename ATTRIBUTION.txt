@@ -1,5 +1,5 @@
 NIGHTINGALE CONTINUUM - EXTERNAL ATTRIBUTION
-Generated for candidate-build submission. Versions are pinned in backend/pyproject.toml
+Prepared for XIE WEIKUN's 2026 Nightingale build submission. Versions are pinned in backend/pyproject.toml
 and frontend/package-lock.json. Full transitive package metadata remains in the lockfile.
 
 RUNTIME LIBRARIES
@@ -85,8 +85,9 @@ https://github.com/jsvine/pdfplumber
 MODEL AND DATA ATTRIBUTION
 
 No external AI model ships with or is invoked by the default build. The
-LocalDeterministicScribe is original repository code used to demonstrate the
-redaction, schema, provenance, and human-review boundaries without a network call.
+LocalDeterministicScribe and citation-first Evidence Review provider are original
+repository code used to demonstrate redaction, schema, provenance, abstention,
+and human-review boundaries without a network call.
 
 All demo patient records, interactions, identifiers, names, notes, comments, tasks,
 and benchmark traffic are fictional synthetic fixtures authored for this project.

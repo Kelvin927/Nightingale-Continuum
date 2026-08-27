@@ -1,3 +1,5 @@
+"""Convert redacted interaction text into explicitly unconfirmed review drafts."""
+
 from __future__ import annotations
 
 import re

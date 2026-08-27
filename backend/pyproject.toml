@@ -62,6 +62,7 @@ only_mutate = [
   "app/importance.py",
   "app/provenance.py",
   "app/redaction.py",
+  "app/review.py",
 ]
 pytest_add_cli_args = ["-q"]
 pytest_add_cli_args_test_selection = ["tests"]

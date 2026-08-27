@@ -17,9 +17,10 @@ EXPECTED_CHECKED_BY_MODULE = {
     "audit": 196,
     "care": 248,
     "evaluation": 218,
-    "importance": 701,
+    "importance": 711,
     "provenance": 105,
     "redaction": 113,
+    "review": 249,
 }
 EXPECTED_TOTAL = sum(EXPECTED_CHECKED_BY_MODULE.values())
 

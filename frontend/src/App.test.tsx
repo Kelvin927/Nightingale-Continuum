@@ -29,6 +29,7 @@ vi.mock("./api", () => {
       revert: vi.fn(),
       createThread: vi.fn(),
       ingestScribe: vi.fn(),
+      evidenceReview: vi.fn(),
       policyEvaluation: vi.fn(),
       auditVerification: vi.fn(),
       auditEvents: vi.fn(),
@@ -42,6 +43,7 @@ import { ApiError, api } from "./api";
 import {
   auditEvents,
   delta,
+  evidenceReview,
   evaluation,
   glance,
   identities,
@@ -114,6 +116,7 @@ function configureSuccessApi() {
     redaction_receipt: { detector_version: "continuum-redactor-v1", entity_counts: { PERSON: 1 } },
     flags: ["human_review_required"],
   });
+  mockedApi.evidenceReview.mockResolvedValue(evidenceReview);
   mockedApi.policyEvaluation.mockResolvedValue(evaluation);
   mockedApi.auditVerification.mockResolvedValue(verification);
   mockedApi.auditEvents.mockResolvedValue({ events: auditEvents });
@@ -133,7 +136,7 @@ async function renderFor(userId: string) {
   await screen.findByRole("heading", { name: "Maya Chen" });
 }
 
-test("clinician workflow completes provenance, feedback, notes, threads, history, scribe, and role switching", async () => {
+test("clinician workflow completes evidence review, provenance, notes, threads, history, scribe, and role switching", async () => {
   await renderFor("user-clinician");
 
   fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
@@ -148,6 +151,26 @@ test("clinician workflow completes provenance, feedback, notes, threads, history
   fireEvent.click(screen.getByRole("button", { name: /care note/i }));
   fireEvent.click(screen.getByRole("button", { name: /related note/i }));
   fireEvent.click(screen.getByRole("button", { name: /review evidence/i }));
+
+  fireEvent.click(screen.getByRole("button", { name: /^evidence review$/i }));
+  fireEvent.click(screen.getByRole("button", { name: "Which medication evidence conflicts?" }));
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^review evidence$/i }));
+  await waitFor(() => expect(mockedApi.evidenceReview).toHaveBeenCalledWith(
+    "user-clinician",
+    patient.id,
+    "Which medication evidence conflicts?",
+  ));
+  expect(await screen.findByText(evidenceReview.summary)).toBeVisible();
+  expect(screen.getByText(evidenceReview.claims[0].quote)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /open source entry/i }));
+  expect(document.querySelector("#entry-entry-clinician")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: /^evidence review$/i }));
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^review evidence$/i }));
+  expect(await screen.findByText(evidenceReview.summary)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /verify exact source/i }));
+  expect(await screen.findByRole("heading", { name: "Verified exact source" })).toBeVisible();
+  fireEvent.click(screen.getAllByRole("button", { name: "Close source drawer" })[1]);
 
   fireEvent.click(screen.getAllByRole("button", { name: /exact source/i })[0]);
   expect(await screen.findByRole("heading", { name: "Verified exact source" })).toBeVisible();
@@ -291,6 +314,13 @@ test("error boundaries render structured, ordinary, and unknown failures and all
 
 test("in-workspace async failures are recoverable and use ordinary error messages", async () => {
   await renderFor("user-clinician");
+  mockedApi.evidenceReview.mockRejectedValueOnce(new Error("Evidence review unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: /^evidence review$/i }));
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^review evidence$/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Evidence review unavailable");
+  fireEvent.click(within(screen.getByRole("alert")).getByRole("button"));
+  fireEvent.click(screen.getAllByRole("button", { name: "Close dialog" })[1]);
+
   mockedApi.provenance.mockRejectedValueOnce(new Error("Source service unavailable"));
   fireEvent.click(screen.getAllByRole("button", { name: /exact source/i })[0]);
   expect(await screen.findByRole("alert")).toHaveTextContent("Source service unavailable");
@@ -380,6 +410,61 @@ test("unmounting cancels late identity, viewer, and workspace responses", async 
     workspaceResult.resolve(workspace);
     await Promise.resolve();
   });
+});
+
+test("live evidence sync refreshes only on a newer server revision and tolerates poll failures", async () => {
+  localStorage.setItem("continuum-demo-user", "user-clinician");
+  let poll: (() => Promise<void>) | undefined;
+  const interval = vi.spyOn(window, "setInterval").mockImplementation((callback) => {
+    poll = callback as () => Promise<void>;
+    return 7;
+  });
+  const clearInterval = vi.spyOn(window, "clearInterval").mockImplementation(() => undefined);
+  const view = render(<App />);
+  await screen.findByRole("heading", { name: "Maya Chen" });
+  expect(screen.getByText("Live evidence sync")).toBeVisible();
+  expect(poll).toBeDefined();
+  const workspaceCalls = mockedApi.workspace.mock.calls.length;
+
+  mockedApi.glance.mockResolvedValueOnce({ ...glance, source_revision: undefined });
+  await act(async () => { await poll?.(); });
+  mockedApi.glance.mockResolvedValueOnce(glance);
+  await act(async () => { await poll?.(); });
+  expect(mockedApi.workspace).toHaveBeenCalledTimes(workspaceCalls);
+
+  mockedApi.glance.mockResolvedValueOnce({ ...glance, source_revision: 2 });
+  await act(async () => { await poll?.(); });
+  expect(mockedApi.workspace).toHaveBeenCalledTimes(workspaceCalls + 1);
+  expect(screen.getByRole("status")).toHaveTextContent("New collaboration evidence synchronized");
+
+  mockedApi.glance.mockRejectedValueOnce(new Error("Transient poll failure"));
+  await act(async () => { await poll?.(); });
+  expect(screen.queryByRole("alert")).toBeNull();
+
+  view.unmount();
+  expect(clearInterval).toHaveBeenCalledWith(7);
+  interval.mockRestore();
+  clearInterval.mockRestore();
+});
+
+test("live evidence sync ignores a response that arrives after unmount", async () => {
+  localStorage.setItem("continuum-demo-user", "user-clinician");
+  let poll: (() => Promise<void>) | undefined;
+  vi.spyOn(window, "setInterval").mockImplementation((callback) => {
+    poll = callback as () => Promise<void>;
+    return 8;
+  });
+  const view = render(<App />);
+  await screen.findByRole("heading", { name: "Maya Chen" });
+  const workspaceCalls = mockedApi.workspace.mock.calls.length;
+  const lateGlance = deferred<typeof glance>();
+  mockedApi.glance.mockReturnValueOnce(lateGlance.promise);
+  const pending = poll?.();
+  view.unmount();
+  lateGlance.resolve({ ...glance, source_revision: 2 });
+  await act(async () => { await pending; });
+  expect(mockedApi.workspace).toHaveBeenCalledTimes(workspaceCalls);
+  vi.restoreAllMocks();
 });
 
 test("toast expiry callback removes status after the configured assurance interval", async () => {

@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   AuditVerification,
   DeltaLens,
+  EvidenceReview,
   Entry,
   EntryVersion,
   Glance,
@@ -130,6 +131,8 @@ export const workspace: Workspace = {
 
 export const glance: Glance = {
   patient_mode: false,
+  source_revision: 1,
+  projection_updated_at: "2026-08-26T08:00:00Z",
   safety_rule: "Critical risks outrank learned adjustments.",
   policy_version: "safe-beta-v1",
   groups: {
@@ -290,6 +293,37 @@ export const auditEvents: AuditEvent[] = [
     created_at: "2026-08-26T08:00:00Z",
   },
 ];
+
+export const evidenceReview: EvidenceReview = {
+  intent: "medication",
+  answer_state: "supported",
+  summary: "Found 1 source-bound signal for this medication review.",
+  claims: [
+    {
+      text: "Medication detail to reconcile",
+      risk_level: "critical",
+      risk_reason: "Medication changes require review",
+      trust_state: "ai_proposed",
+      confidence: 0.88,
+      provenance_span_id: "span-1",
+      source_entry_id: "entry-clinician",
+      quote: "Medication changed from 10 mg to 20 mg.",
+    },
+  ],
+  open_actions: [
+    {
+      title: "Review renal result",
+      urgency: "high",
+      assigned_to: "user-clinician",
+      due_at: "2026-08-27T08:00:00Z",
+      source_entry_id: "entry-clinician",
+    },
+  ],
+  conflicts: ["Two dose values require reconciliation."],
+  abstention_reason: null,
+  provider: "local-evidence-reviewer-v1",
+  safety_notice: "Decision support only. Verify the cited record before clinical action.",
+};
 
 export function viewer(role: Viewer["role"]): Viewer {
   const identity = identities.find((item) => item.role === role) ?? identities[0];

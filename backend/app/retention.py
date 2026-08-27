@@ -1,3 +1,5 @@
+"""Tier derived data while preserving source, audit, and active safety evidence."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

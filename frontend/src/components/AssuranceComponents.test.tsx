@@ -5,6 +5,7 @@ import {
   auditEvents,
   clinicianEntry,
   delta,
+  evidenceReview,
   evaluation,
   patientEntry,
   provenance,
@@ -17,7 +18,96 @@ import { DeltaLens } from "./DeltaLens";
 import { CommentDialog, HistoryDialog, NoteDialog, ScribeDialog } from "./Dialogs";
 import { ProvenanceDrawer } from "./ProvenanceDrawer";
 import { ResearchPanel } from "./ResearchPanel";
+import { ReviewCopilotDialog } from "./ReviewCopilot";
 import { Timeline } from "./Timeline";
+
+test("evidence review copilot keeps answers source-bound and exposes workflow links", async () => {
+  const onAsk = vi.fn().mockResolvedValue(undefined);
+  const onSource = vi.fn();
+  const onTaskSource = vi.fn();
+  const onClose = vi.fn();
+  const { rerender } = render(
+    <ReviewCopilotDialog
+      result={null}
+      busy={false}
+      onClose={onClose}
+      onAsk={onAsk}
+      onSource={onSource}
+      onTaskSource={onTaskSource}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("Ask about this longitudinal record"), {
+    target: { value: "No" },
+  });
+  expect(screen.getByRole("button", { name: /^review evidence$/i })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Which medication evidence conflicts?" }));
+  fireEvent.submit(screen.getByRole("button", { name: /^review evidence$/i }).closest("form")!);
+  await waitFor(() => expect(onAsk).toHaveBeenCalledWith("Which medication evidence conflicts?"));
+
+  rerender(
+    <ReviewCopilotDialog
+      result={evidenceReview}
+      busy={false}
+      onClose={onClose}
+      onAsk={onAsk}
+      onSource={onSource}
+      onTaskSource={onTaskSource}
+    />,
+  );
+  expect(screen.getByText(evidenceReview.summary)).toBeVisible();
+  expect(screen.getByText(evidenceReview.claims[0].quote)).toBeVisible();
+  expect(screen.getByText("Explicit owner assigned")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /verify exact source/i }));
+  fireEvent.click(screen.getByRole("button", { name: /open source entry/i }));
+  expect(onSource).toHaveBeenCalledWith("span-1");
+  expect(onTaskSource).toHaveBeenCalledWith("entry-clinician");
+  screen.getAllByRole("button", { name: "Close dialog" }).forEach(fireEvent.click);
+  expect(onClose).toHaveBeenCalledTimes(2);
+});
+
+test("evidence review copilot communicates abstention, unowned work, and loading", () => {
+  const result = {
+    ...evidenceReview,
+    answer_state: "workflow_only" as const,
+    claims: [],
+    conflicts: [],
+    abstention_reason: "The record has workflow items but no matching sourced clinical signal.",
+    open_actions: [
+      {
+        ...evidenceReview.open_actions[0],
+        assigned_to: null,
+        due_at: null,
+        source_entry_id: null,
+      },
+    ],
+  };
+  const { rerender } = render(
+    <ReviewCopilotDialog
+      result={result}
+      busy
+      onClose={vi.fn()}
+      onAsk={vi.fn()}
+      onSource={vi.fn()}
+      onTaskSource={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(result.abstention_reason)).toBeVisible();
+  expect(screen.getByText("Owner required")).toBeVisible();
+  expect(screen.queryByRole("button", { name: /open source entry/i })).toBeNull();
+  expect(screen.getByRole("button", { name: "Reviewing..." })).toBeDisabled();
+
+  rerender(
+    <ReviewCopilotDialog
+      result={{ ...result, answer_state: "insufficient_evidence", open_actions: [] }}
+      busy={false}
+      onClose={vi.fn()}
+      onAsk={vi.fn()}
+      onSource={vi.fn()}
+      onTaskSource={vi.fn()}
+    />,
+  );
+  expect(screen.queryByText("Open workflow")).toBeNull();
+});
 
 test("admin panel renders valid and review states, audit rows, and retention action", () => {
   const onRetention = vi.fn();

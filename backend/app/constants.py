@@ -1,3 +1,5 @@
+"""Shared role, risk, trust, and retention vocabulary."""
+
 ROLES = {"patient", "staff", "clinician", "admin"}
 
 AI_ENTRY_TYPES = {

@@ -1,3 +1,5 @@
+"""Append and verify clinic-scoped, tamper-evident audit metadata."""
+
 from __future__ import annotations
 
 import hashlib

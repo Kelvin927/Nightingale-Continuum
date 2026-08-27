@@ -1,3 +1,5 @@
+"""Create isolated SQLAlchemy engines and transaction-scoped sessions."""
+
 from __future__ import annotations
 
 from collections.abc import Iterator

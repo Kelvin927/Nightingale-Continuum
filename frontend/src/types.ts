@@ -202,3 +202,34 @@ export interface DeltaLens {
   interpretation: string;
   causal_guardrail: string;
 }
+
+export interface ReviewClaim {
+  text: string;
+  risk_level: "critical" | "high" | "medium" | "low";
+  risk_reason: string;
+  trust_state: string;
+  confidence: number;
+  provenance_span_id: string;
+  source_entry_id: string;
+  quote: string;
+}
+
+export interface ReviewAction {
+  title: string;
+  urgency: string;
+  assigned_to: string | null;
+  due_at: string | null;
+  source_entry_id: string | null;
+}
+
+export interface EvidenceReview {
+  intent: "overview" | "medication" | "change" | "action" | "safety";
+  answer_state: "supported" | "workflow_only" | "insufficient_evidence";
+  summary: string;
+  claims: ReviewClaim[];
+  open_actions: ReviewAction[];
+  conflicts: string[];
+  abstention_reason: string | null;
+  provider: string;
+  safety_notice: string;
+}

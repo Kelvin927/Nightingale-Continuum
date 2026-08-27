@@ -2,13 +2,22 @@
 
 **A longitudinal care note that compresses attention without compressing evidence.**
 
-Nightingale Continuum is a candidate-build prototype for a shared clinical narrative across clinician, staff, patient-contributed, and AI-scribed interactions. Its primary surface is a bounded consult glance that answers four questions in under 10 seconds: what matters, why it matters, who owns the next step, and exactly where the evidence came from.
+Nightingale Continuum is a prototype for a shared clinical narrative across clinician, staff, patient-contributed, and AI-scribed interactions. Its primary surface is a bounded consult glance that answers four questions in under 10 seconds: what matters, why it matters, who owns the next step, and exactly where the evidence came from.
 
 > Synthetic data only. This is a product and safety prototype, not a clinical system, medical device, or compliance claim.
+
+## Candidate
+
+- **Name:** XIE WEIKUN
+- **School:** SPMS
+- **Programme:** MSc in Analytics
+- **Repository:** <https://github.com/Kelvin927/Nightingale-Continuum>
 
 ## What is distinctive
 
 - **Evidence-bound glance:** every highlight resolves to an immutable source version, exact character span, quote, source URI, and content hash.
+- **Citation-first evidence review:** a role-scoped local reviewer organizes only authorized claims, quotes, actions, and conflicts; it abstains when the record cannot support a sourced answer.
+- **Revision-aware collaboration:** the interface polls a lightweight projection revision and reloads the workspace only when server evidence changes.
 - **Visible trust ladder:** AI-proposed, human-authored, staff-verified, clinician-confirmed, and superseded states are expressed with text and iconography, not color alone.
 - **Role-owned collaboration:** staff and clinicians share context but cannot overwrite each other's sections. Revert creates a new version; history is never erased.
 - **Safe adaptive importance:** bounded Beta-posterior feedback can reorder ordinary suggestions, while critical risk, allergy, medication-safety, and urgent-task rules remain dominant.
@@ -16,7 +25,7 @@ Nightingale Continuum is a candidate-build prototype for a shared clinical narra
 - **Shadow policy evaluation:** impression propensities and outcomes support an exploratory doubly robust estimate with assumptions, uncertainty, and effective sample size shown explicitly.
 - **Provenance-preserving decay:** hot/warm/cold tiers can remove derived caches, never the immutable source, audit metadata, or protected active safety evidence.
 
-## Five-minute local start
+## Local start
 
 Requirements: Python 3.12+, Node 24+, and npm 11+. Python build tooling and the complete 74-package third-party environment are exactly constrained in `backend/pyproject.toml` and `requirements-lock.txt`; npm uses `package-lock.json`.
 
@@ -49,6 +58,8 @@ The `X-Demo-User` header is isolated demo authentication. Role and clinic are lo
 
 ## Verify the build
 
+The same release gates run in GitHub Actions from a fresh Ubuntu checkout; local commands remain the authoritative reproduction path.
+
 ```bash
 make verify
 ```
@@ -57,13 +68,13 @@ This runs:
 
 - exact installed-Python-graph verification against the 74-package constraints lock;
 - Ruff check and format verification with warnings promoted to errors in Python tests;
-- 124 Python tests, including every brief-required filename and deterministic property tests;
+- 159 Python tests, including every brief-required filename and deterministic property tests;
 - exact 100 percent backend statement and branch coverage gates;
-- 40 Vitest tests with exact 100 percent statement, branch, function, and line coverage gates;
+- 45 Vitest tests with exact 100 percent statement, branch, function, and line coverage gates;
 - automated axe accessibility checks for the role views and modal/drawer states;
 - Python and npm advisory audits plus CycloneDX software bills of materials;
 - cold-construction and warm-path performance evidence with zero tolerated failures;
-- cache-safe mutation testing across six critical domain modules; the runner serializes concurrent invocations, excludes generated Python bytecode, and rebuilds the gitignored mutant workspace before every run, and the clean-room run killed all 1,581 generated mutants;
+- cache-safe mutation testing across seven critical domain modules; the runner serializes concurrent invocations, excludes generated Python bytecode, and rebuilds the gitignored mutant workspace before every run, and the full run killed all 1,840 generated mutants;
 - TypeScript production build, release-package audit, and Git whitespace checks.
 
 With the API running, measure the warm read path:
@@ -72,7 +83,7 @@ With the API running, measure the warm read path:
 make benchmark
 ```
 
-The committed isolated clean-room benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.114 ms, P95 1.220 ms, and P99 1.311 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 29.783 ms and P95 32.133 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
+The isolated release benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.224 ms, P95 1.486 ms, and P99 1.708 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 32.891 ms and P95 36.024 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
 
 Browser tests are defined for desktop Chromium and Pixel 7-sized mobile Chromium:
 
@@ -83,7 +94,7 @@ cd ..
 make test-browser
 ```
 
-The committed browser run passes all 5 applicable workflows with zero failures, retries classified as flaky, or skipped cases. Each run uses unique checkout-owned API/web ports and a temporary SQLite database, so an already-running demo cannot be mistaken for the tested build and parallel requests cannot touch demo state or share a single in-memory connection.
+The committed browser run passes all 7 applicable workflows with zero failures, retries classified as flaky, or skipped cases. Each run uses unique checkout-owned API/web ports and a temporary SQLite database, so an already-running demo cannot be mistaken for the tested build and parallel requests cannot touch demo state or share a single in-memory connection.
 
 ## Where security is enforced
 
@@ -145,6 +156,7 @@ PROJECT_STATE.md        Recovery checkpoint and verification status
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - architecture, schema, ranking, and retention decisions
 - [`docs/INNOVATION_LEDGER.md`](docs/INNOVATION_LEDGER.md) - standards, research-derived methods, prototype contributions, and non-claims
 - [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) - deterministic video script and final human checks
+- [`docs/SUBMISSION_CHECKLIST.md`](docs/SUBMISSION_CHECKLIST.md) - repository, video, GitHub, and final-message checklist
 - [`docs/ASSURANCE_REPORT.md`](docs/ASSURANCE_REPORT.md) - machine-verifiable quality evidence and honest residual boundaries
 - [`docs/MUTATION_REVIEW.md`](docs/MUTATION_REVIEW.md) - unadjusted mutation result and survivor-elimination rationale
 - [`docs/references/EVIDENCE_REGISTRY.md`](docs/references/EVIDENCE_REGISTRY.md) - primary research and official standards

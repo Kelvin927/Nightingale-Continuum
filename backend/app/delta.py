@@ -1,3 +1,5 @@
+"""Describe longitudinal changes without inferring unsupported causation."""
+
 from __future__ import annotations
 
 import re

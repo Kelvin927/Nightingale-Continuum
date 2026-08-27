@@ -1,3 +1,5 @@
+"""Manage immutable care-note versions, threads, and actor-safe projections."""
+
 from __future__ import annotations
 
 import difflib

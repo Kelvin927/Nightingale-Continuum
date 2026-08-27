@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   AuditVerification,
   DeltaLens,
+  EvidenceReview,
   Glance,
   Identity,
   Patient,
@@ -10,6 +11,9 @@ import type {
   Viewer,
   Workspace,
 } from "./types";
+
+// This client sends only identity and object identifiers; role and clinic scope
+// are always re-derived and enforced by the API.
 
 export class ApiError extends Error {
   status: number;
@@ -125,6 +129,11 @@ export const api = {
     }>("/api/v1/scribe/ingest", userId, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  evidenceReview: (userId: string, patientId: string, question: string) =>
+    request<EvidenceReview>("/api/v1/review/query", userId, {
+      method: "POST",
+      body: JSON.stringify({ patient_id: patientId, question }),
     }),
   policyEvaluation: (userId: string) =>
     request<PolicyEvaluation>("/api/v1/research/policy-evaluation", userId),

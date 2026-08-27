@@ -17,7 +17,7 @@ import {
 
 import type { Entry, EntryVersion, Role } from "../types";
 
-function DialogShell({
+export function DialogShell({
   title,
   eyebrow,
   children,

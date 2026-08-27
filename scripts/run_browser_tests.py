@@ -31,6 +31,9 @@ def main() -> int:
         return 2
     api_port, web_port = reserve_two_ports()
     environment = os.environ.copy()
+    # Some runners set FORCE_COLOR. Removing the conflicting NO_COLOR hint keeps
+    # child-process output deterministic and avoids Node's configuration warning.
+    environment.pop("NO_COLOR", None)
     environment["NIGHTINGALE_E2E_API_PORT"] = str(api_port)
     environment["NIGHTINGALE_E2E_WEB_PORT"] = str(web_port)
     print(f"Playwright isolated ports: API {api_port}, web {web_port}")
