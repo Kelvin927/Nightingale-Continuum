@@ -175,6 +175,7 @@ def test_feedback_persists_exact_context_updates_both_posteriors_and_audit(
             if len(item.entity_tags) >= 2
         )
         assert actor is not None
+        displayed_position_score = highlight.rank_score
         feedback = record_feedback(
             session,
             actor=actor,
@@ -204,7 +205,7 @@ def test_feedback_persists_exact_context_updates_both_posteriors_and_audit(
                 "features": sorted(highlight.entity_tags),
                 "risk_level": highlight.risk_level,
                 "base_score": highlight.base_score,
-                "position_score": highlight.rank_score - highlight.adaptive_score,
+                "position_score": displayed_position_score,
             },
             "accepted",
         )

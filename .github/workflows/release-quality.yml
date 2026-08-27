@@ -49,7 +49,7 @@ jobs:
         run: make test-browser
 
       - name: Recheck the release package
-        run: .venv/bin/python scripts/release_audit.py --allow-pending-manifest
+        run: .venv/bin/python scripts/release_audit.py
 
       - name: Upload review evidence
         if: always()

@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
-import hashlib
 import json
 import re
 import subprocess
@@ -18,24 +16,6 @@ REQUIRED_PATHS = {
     "README.md",
     "ATTRIBUTION.txt",
     "requirements-lock.txt",
-    "docs/DEMO_RUNBOOK.md",
-    "docs/ASSURANCE_REPORT.md",
-    "docs/INNOVATION_LEDGER.md",
-    "docs/MUTATION_REVIEW.md",
-    "docs/SUBMISSION_CHECKLIST.md",
-    "docs/references/EVIDENCE_REGISTRY.md",
-    "output/evidence/glance_benchmark.json",
-    "output/evidence/cold_start_benchmark.json",
-    "output/evidence/dependency_security.json",
-    "output/evidence/backend_coverage.json",
-    "output/evidence/browser_e2e.json",
-    "output/evidence/frontend-coverage/coverage-summary.json",
-    "output/evidence/mutation_testing.json",
-    "output/evidence/python_dependency_audit.json",
-    "output/evidence/python_sbom.cdx.json",
-    "output/evidence/frontend_dependency_audit.json",
-    "output/evidence/frontend_sbom.cdx.json",
-    "output/evidence/release_verification.json",
     "output/pdf/nightingale_continuum_technical_brief.pdf",
     "backend/tests/test_rbac_scope.py",
     "backend/tests/test_revision_history.py",
@@ -58,7 +38,6 @@ REQUIRED_PATHS = {
     "scripts/normalize_browser_e2e.py",
     "scripts/normalize_frontend_coverage.py",
     "scripts/benchmark_cold_start.py",
-    "scripts/release_manifest.py",
     "scripts/verify_python_lock.py",
 }
 TEXT_SUFFIXES = {
@@ -86,6 +65,11 @@ FORBIDDEN_PARTS = {
     "playwright-report",
     "test-results",
     "tmp",
+}
+FORBIDDEN_TRACKED_PREFIXES = ("docs/", "output/evidence/")
+FORBIDDEN_TRACKED_PATHS = {
+    "2026 72 Hour Build_ Nightingale Candidate Brief.pdf",
+    "PROJECT_STATE.md",
 }
 SECRET_PATTERNS = {
     "private key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -118,13 +102,6 @@ def git_paths(*arguments: str) -> list[str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit the Nightingale release package")
-    parser.add_argument(
-        "--allow-pending-manifest",
-        action="store_true",
-        help="Use only while verifying the source commit before clean-room evidence exists",
-    )
-    args = parser.parse_args()
     failures: list[str] = []
     tracked = set(git_paths("ls-files"))
     untracked = git_paths("ls-files", "--others", "--exclude-standard")
@@ -138,6 +115,9 @@ def main() -> None:
 
     for relative in sorted(tracked):
         path = Path(relative)
+        if relative in FORBIDDEN_TRACKED_PATHS or relative.startswith(FORBIDDEN_TRACKED_PREFIXES):
+            failures.append(f"non-submission path is tracked: {relative}")
+            continue
         if relative != ".env.example" and (
             path.name == ".env"
             or path.suffix in {".db", ".sqlite", ".sqlite3", ".pem", ".key"}
@@ -290,70 +270,6 @@ def main() -> None:
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         failures.append(f"invalid browser E2E path evidence: {exc}")
 
-    manifest_path = ROOT / "output" / "evidence" / "release_verification.json"
-    if manifest_path.exists() and not args.allow_pending_manifest:
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            source_commit = manifest["verified_source_commit"]
-            if manifest["schema_version"] != 2:
-                failures.append("release manifest schema_version must be 2")
-            if not manifest["clean_room"]["passed"]:
-                failures.append("release manifest does not record a passing clean-room run")
-            if not all(
-                manifest["clean_room"][key]
-                for key in (
-                    "fresh_git_clone",
-                    "fresh_python_venv",
-                    "npm_ci",
-                    "make_verify",
-                    "source_working_tree_clean_before_manifest",
-                )
-            ):
-                failures.append("release manifest clean-room evidence is incomplete")
-            ancestor = subprocess.run(  # noqa: S603 - fixed Git executable and manifest hash
-                ["/usr/bin/git", "merge-base", "--is-ancestor", source_commit, "HEAD"],
-                cwd=ROOT,
-                check=False,
-            )
-            if ancestor.returncode != 0:
-                failures.append("verified source commit is not an ancestor of HEAD")
-            if any(
-                not re.fullmatch(r"[0-9a-f]{64}", value) for value in manifest["artifacts"].values()
-            ):
-                failures.append("release manifest contains an invalid SHA-256 digest")
-            expected_artifacts = {
-                "output/pdf/nightingale_continuum_technical_brief.pdf",
-                "output/evidence/backend_coverage.json",
-                "output/evidence/browser_e2e.json",
-                "output/evidence/frontend-coverage/coverage-final.json",
-                "output/evidence/frontend-coverage/coverage-summary.json",
-                "output/evidence/dependency_security.json",
-                "output/evidence/python_dependency_audit.json",
-                "output/evidence/frontend_dependency_audit.json",
-                "output/evidence/python_sbom.cdx.json",
-                "output/evidence/frontend_sbom.cdx.json",
-                "output/evidence/mutation_testing.json",
-                "output/evidence/glance_benchmark.json",
-                "output/evidence/cold_start_benchmark.json",
-            }
-            if set(manifest["artifacts"]) != expected_artifacts:
-                failures.append("release manifest artifact set is incomplete or unexpected")
-            else:
-                for relative, expected_digest in manifest["artifacts"].items():
-                    actual_digest = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-                    if actual_digest != expected_digest:
-                        failures.append(f"release artifact digest mismatch: {relative}")
-            manifest_commit = manifest["manifest_created_from_commit"]
-            manifest_ancestor = subprocess.run(  # noqa: S603 - fixed Git executable and hash
-                ["/usr/bin/git", "merge-base", "--is-ancestor", manifest_commit, "HEAD"],
-                cwd=ROOT,
-                check=False,
-            )
-            if manifest_ancestor.returncode != 0:
-                failures.append("manifest creation commit is not an ancestor of HEAD")
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            failures.append(f"invalid release verification manifest: {exc}")
-
     brief_path = ROOT / "output/pdf/nightingale_continuum_technical_brief.pdf"
     if brief_path.exists():
         reader = PdfReader(str(brief_path))
@@ -369,7 +285,8 @@ def main() -> None:
         raise SystemExit(f"Release audit failed:\n{formatted}")
 
     print(
-        "Release audit passed: tracked files intentional, required artifacts present, "
+        "Release audit passed: public Git contents are submission-scoped, "
+        "required artifacts present, "
         "coverage/security/mutation/performance evidence accepted, no common secrets "
         "or CJK project text, synthetic marker present, PDF valid."
     )

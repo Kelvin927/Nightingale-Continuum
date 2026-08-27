@@ -57,7 +57,7 @@ trap - EXIT
 .venv/bin/python scripts/run_mutation.py
 .venv/bin/python scripts/mutation_evidence.py
 .venv/bin/python scripts/build_technical_brief.py
-.venv/bin/python scripts/release_audit.py --allow-pending-manifest
+.venv/bin/python scripts/release_audit.py
 git diff --check
 
 echo "All non-browser verification gates passed."

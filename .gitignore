@@ -21,4 +21,7 @@ mutants/
 *.sqlite3
 *.db
 tmp/
-output/evidence/*.tmp
+docs/
+PROJECT_STATE.md
+2026 72 Hour Build_ Nightingale Candidate Brief.pdf
+output/evidence/

@@ -105,11 +105,11 @@ are not redistributed.
 SOURCE MATERIAL
 
 The file "2026 72 Hour Build_ Nightingale Candidate Brief.pdf" was supplied to the
-candidate as the project specification. It is retained in the repository only for
-requirements traceability and is not relicensed by this attribution file.
+candidate as the project specification. It is not redistributed in the public
+repository and is not relicensed by this attribution file.
 
 THIRD-PARTY STANDARDS AND RESEARCH
 
 FHIR, W3C PROV-O, NIST AI RMF, OWASP guidance, and cited research papers inform the
 design but are not bundled software dependencies. Human-readable citations and links
-appear in docs/references/EVIDENCE_REGISTRY.md and the technical brief.
+appear in the technical brief.

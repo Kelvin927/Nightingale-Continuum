@@ -83,7 +83,7 @@ With the API running, measure the warm read path:
 make benchmark
 ```
 
-The isolated release benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.180 ms, P95 1.425 ms, and P99 1.607 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 31.717 ms and P95 36.917 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
+The isolated release benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.136 ms, P95 1.277 ms, and P99 1.395 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 31.059 ms and P95 34.533 ms. These are explicit local approximations, not production-network or orchestration claims. `make verify` regenerates the machine-readable results under the ignored `output/evidence/` directory; GitHub Actions retains the same evidence as a workflow artifact.
 
 Browser tests are defined for desktop Chromium and Pixel 7-sized mobile Chromium:
 
@@ -107,7 +107,7 @@ The request path is `route -> authenticated actor -> object policy -> domain tra
 - Every accepted mutation appends an immutable version and metadata-only audit event within the transaction.
 - Same-section stale writes return a structured `409` conflict. Independent role-owned sections can update concurrently.
 
-The local SQLite policy layer makes the candidate demo runnable without Docker. The production design adds PostgreSQL row-level security under a non-owner application role as a second enforcement layer. See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for residual risks and required deployment controls.
+The local SQLite policy layer makes the candidate demo runnable without Docker. A production deployment would add PostgreSQL row-level security under a non-owner application role, authenticated OIDC sessions with MFA, managed encryption keys, centralized audit retention, rate limits, monitoring, backups, and an independently reviewed authorization policy. Those controls are deployment requirements, not claims about this prototype.
 
 ## Where redaction happens
 
@@ -134,11 +134,8 @@ backend/app/            FastAPI policy, domain, provenance, learning, retention
 backend/tests/          Required micro-tests plus adversarial safety tests
 frontend/src/           Responsive React care workspace and role projections
 frontend/e2e/           Desktop/mobile browser workflow specification
-docs/                   Architecture, threat model, quality gates, evidence ledger
-output/evidence/        Machine-readable benchmark and verification evidence
 output/pdf/             Submission-ready technical brief
 scripts/                Reproducible verification, benchmarks, brief builder
-PROJECT_STATE.md        Recovery checkpoint and verification status
 ```
 
 ## Important limitations
@@ -150,15 +147,13 @@ PROJECT_STATE.md        Recovery checkpoint and verification status
 - Offline ranking estimates describe a synthetic interaction proxy. They do not establish clinical benefit or patient safety.
 - Hash chaining is tamper-evident inside the application threat model, not externally notarized.
 
-## Submission artifacts
+## Submission files
 
-- [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) - 48-hour execution plan and definition of done
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - architecture, schema, ranking, and retention decisions
-- [`docs/INNOVATION_LEDGER.md`](docs/INNOVATION_LEDGER.md) - standards, research-derived methods, prototype contributions, and non-claims
-- [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) - deterministic video script and final human checks
-- [`docs/SUBMISSION_CHECKLIST.md`](docs/SUBMISSION_CHECKLIST.md) - repository, video, GitHub, and final-message checklist
-- [`docs/ASSURANCE_REPORT.md`](docs/ASSURANCE_REPORT.md) - machine-verifiable quality evidence and honest residual boundaries
-- [`docs/MUTATION_REVIEW.md`](docs/MUTATION_REVIEW.md) - unadjusted mutation result and survivor-elimination rationale
-- [`docs/references/EVIDENCE_REGISTRY.md`](docs/references/EVIDENCE_REGISTRY.md) - primary research and official standards
-- [`ATTRIBUTION.txt`](ATTRIBUTION.txt) - libraries, models, assets, and licenses
-- [`output/pdf/nightingale_continuum_technical_brief.pdf`](output/pdf/nightingale_continuum_technical_brief.pdf) - concise 3-page technical brief
+The repository intentionally contains only the requested submission materials and the files needed to run and verify them:
+
+- the working application and automated tests under `backend/` and `frontend/`;
+- this `README.md` with setup, run, RBAC, redaction, testing, and limitations;
+- [`ATTRIBUTION.txt`](ATTRIBUTION.txt) with external libraries, models, assets, and licenses; and
+- [`output/pdf/nightingale_continuum_technical_brief.pdf`](output/pdf/nightingale_continuum_technical_brief.pdf), the required three-page technical brief.
+
+The demo video is submitted separately. Generated coverage, security, mutation, browser, and benchmark evidence is intentionally excluded from Git and produced by `make verify` or GitHub Actions.
