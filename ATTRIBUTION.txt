@@ -16,6 +16,9 @@ https://github.com/pydantic/pydantic
 SQLAlchemy 2.0.52 - MIT License
 https://github.com/sqlalchemy/sqlalchemy
 
+Greenlet 3.5.5 - MIT License; platform-specific SQLAlchemy runtime on Linux x86_64
+https://github.com/python-greenlet/greenlet
+
 Uvicorn 0.52.4 - BSD 3-Clause License
 https://github.com/encode/uvicorn
 

@@ -27,7 +27,7 @@ Nightingale Continuum is a prototype for a shared clinical narrative across clin
 
 ## Local start
 
-Requirements: Python 3.12+, Node 24+, and npm 11+. Python build tooling and the complete 74-package third-party environment are exactly constrained in `backend/pyproject.toml` and `requirements-lock.txt`; npm uses `package-lock.json`.
+Requirements: Python 3.12+, Node 24+, and npm 11+. Python build tooling and the complete third-party environment are exactly constrained in `backend/pyproject.toml` and the marker-aware `requirements-lock.txt`; npm uses `package-lock.json`. The lock resolves to 74 packages on the release macOS arm64 environment and 75 on Linux x86_64, where SQLAlchemy declares `greenlet` as a platform-specific runtime dependency.
 
 ```bash
 make setup
@@ -66,7 +66,7 @@ make verify
 
 This runs:
 
-- exact installed-Python-graph verification against the 74-package constraints lock;
+- exact installed-Python-graph verification against the marker-aware constraints lock;
 - Ruff check and format verification with warnings promoted to errors in Python tests;
 - 159 Python tests, including every brief-required filename and deterministic property tests;
 - exact 100 percent backend statement and branch coverage gates;
@@ -83,7 +83,7 @@ With the API running, measure the warm read path:
 make benchmark
 ```
 
-The isolated release benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.224 ms, P95 1.486 ms, and P99 1.708 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 32.891 ms and P95 36.024 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
+The isolated release benchmark used 50 warm-ups plus 600 measured loopback requests: 600 succeeded, median 1.581 ms, P95 1.883 ms, and P99 2.515 ms. A separate 40-sample cold-construction benchmark completed 40/40 samples with median 36.416 ms and P95 76.935 ms. These are explicit local approximations, not production-network or orchestration claims. See [`output/evidence/glance_benchmark.json`](output/evidence/glance_benchmark.json) and [`output/evidence/cold_start_benchmark.json`](output/evidence/cold_start_benchmark.json).
 
 Browser tests are defined for desktop Chromium and Pixel 7-sized mobile Chromium:
 

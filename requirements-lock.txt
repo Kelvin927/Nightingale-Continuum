@@ -1,4 +1,5 @@
-# Exact Python 3.13 environment resolved and clean-room verified on 26 Aug 2026.
+# Exact Python 3.13 environment resolved and clean-room verified on 27 Aug 2026.
+# Environment markers retain platform-specific transitive dependencies.
 # Used as a constraints file; the editable Nightingale package is intentionally excluded.
 annotated-doc==0.0.5
 annotated-types==0.8.0
@@ -15,6 +16,7 @@ cyclonedx-python-lib==11.12.0
 defusedxml==0.7.1
 fastapi==0.141.1
 filelock==3.32.4
+greenlet==3.5.5; platform_machine == "aarch64" or platform_machine == "ppc64le" or platform_machine == "x86_64" or platform_machine == "amd64" or platform_machine == "AMD64" or platform_machine == "win32" or platform_machine == "WIN32"
 h11==0.16.0
 httpcore2==2.10.0
 httptools==0.8.0

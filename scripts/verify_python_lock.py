@@ -7,6 +7,8 @@ import re
 from importlib.metadata import distributions
 from pathlib import Path
 
+from packaging.requirements import InvalidRequirement, Requirement
+
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / "requirements-lock.txt"
 PROJECT_PACKAGE = "nightingale-continuum-api"
@@ -22,13 +24,25 @@ def locked_versions() -> dict[str, str]:
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        name, separator, version = line.partition("==")
-        if separator != "==" or not name or not version:
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement as exc:
+            raise SystemExit(f"Invalid exact-lock line: {raw_line}") from exc
+        specifiers = list(requirement.specifier)
+        if (
+            requirement.url is not None
+            or requirement.extras
+            or len(specifiers) != 1
+            or specifiers[0].operator != "=="
+            or "*" in specifiers[0].version
+        ):
             raise SystemExit(f"Invalid exact-lock line: {raw_line}")
-        normalized = canonical(name)
+        if requirement.marker is not None and not requirement.marker.evaluate():
+            continue
+        normalized = canonical(requirement.name)
         if normalized in locked:
-            raise SystemExit(f"Duplicate package in exact lock: {name}")
-        locked[normalized] = version
+            raise SystemExit(f"Duplicate package in exact lock: {requirement.name}")
+        locked[normalized] = specifiers[0].version
     return locked
 
 

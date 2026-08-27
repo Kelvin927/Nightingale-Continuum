@@ -10,6 +10,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from packaging.requirements import InvalidRequirement, Requirement
 from pypdf import PdfReader
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,11 +163,31 @@ def main() -> None:
         for line in (ROOT / "requirements-lock.txt").read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
-    lock_names = [re.split(r"==", line, maxsplit=1)[0].lower() for line in lock_lines]
-    if any(not re.fullmatch(r"[A-Za-z0-9_.-]+==[^=\s]+", line) for line in lock_lines):
-        failures.append("Python dependency lock contains a non-exact or invalid requirement")
+    lock_requirements: list[Requirement] = []
+    for line in lock_lines:
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement:
+            failures.append("Python dependency lock contains a non-exact or invalid requirement")
+            continue
+        specifiers = list(requirement.specifier)
+        if (
+            requirement.url is not None
+            or requirement.extras
+            or len(specifiers) != 1
+            or specifiers[0].operator != "=="
+            or "*" in specifiers[0].version
+        ):
+            failures.append("Python dependency lock contains a non-exact or invalid requirement")
+            continue
+        lock_requirements.append(requirement)
+    lock_names = [requirement.name.lower() for requirement in lock_requirements]
     if len(lock_names) != len(set(lock_names)):
         failures.append("Python dependency lock contains duplicate packages")
+    active_lock_count = sum(
+        requirement.marker is None or requirement.marker.evaluate()
+        for requirement in lock_requirements
+    )
 
     evidence_checks = {
         "backend_coverage.json": lambda payload: (
@@ -189,7 +210,7 @@ def main() -> None:
         "dependency_security.json": lambda payload: (
             payload["passed"]
             and payload["python"]["known_vulnerabilities"] == 0
-            and payload["python"]["dependencies_audited"] == len(lock_lines)
+            and payload["python"]["dependencies_audited"] == active_lock_count
             and payload["python"]["editable_packages_skipped"] == 1
             and payload["frontend"]["known_vulnerabilities"] == 0
             and payload["frontend"]["dependencies_audited"] == 198
