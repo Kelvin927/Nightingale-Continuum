@@ -23,5 +23,6 @@ mutants/
 tmp/
 docs/
 PROJECT_STATE.md
-2026 72 Hour Build_ Nightingale Candidate Brief.pdf
+# Keep personal and source documents out of the repository root.
+/*.pdf
 output/evidence/
