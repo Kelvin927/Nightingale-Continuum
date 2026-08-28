@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from functools import cache
 from pathlib import Path
 
@@ -36,11 +37,39 @@ PURPLE_PALE = HexColor("#F0EAF3")
 def measured_metrics() -> dict[str, str]:
     warm = json.loads((EVIDENCE / "glance_benchmark.json").read_text(encoding="utf-8"))
     coverage = json.loads((EVIDENCE / "backend_coverage.json").read_text(encoding="utf-8"))
+    frontend = json.loads(
+        (EVIDENCE / "frontend-coverage" / "coverage-summary.json").read_text(encoding="utf-8")
+    )
+    browser = json.loads((EVIDENCE / "browser_e2e.json").read_text(encoding="utf-8"))
+    mutation = json.loads((EVIDENCE / "mutation_testing.json").read_text(encoding="utf-8"))
+    security = json.loads((EVIDENCE / "dependency_security.json").read_text(encoding="utf-8"))
+    backend_totals = coverage["totals"]
+    frontend_total = frontend["total"]
+    mutation_totals = mutation["totals"]
+    known_advisories = (
+        security["python"]["known_vulnerabilities"] + security["frontend"]["known_vulnerabilities"]
+    )
+    if not (
+        backend_totals["percent_statements_covered"] == 100
+        and backend_totals["percent_branches_covered"] == 100
+        and all(
+            frontend_total[key]["pct"] == 100
+            for key in ("statements", "branches", "functions", "lines")
+        )
+        and browser["stats"]["unexpected"] == 0
+        and browser["stats"]["flaky"] == 0
+        and mutation_totals["survived"] == 0
+        and not mutation["unchecked_mutants"]
+    ):
+        raise RuntimeError("Technical brief evidence gates are not all satisfied")
     return {
         "warm_success": (f"{warm['samples_successful']} / {warm['samples_requested']}"),
         "warm_median": f"{warm['latency_ms']['median']:.3f} ms",
         "warm_p95": f"{warm['latency_ms']['p95']:.3f} ms",
-        "backend_coverage": (f"{coverage['totals']['percent_statements_covered']:.0f}%"),
+        "backend_coverage": f"{backend_totals['percent_statements_covered']:.0f}%",
+        "browser_e2e": f"{browser['stats']['expected']} / {browser['stats']['expected']}",
+        "mutants": f"{mutation_totals['killed']:,} / {mutation_totals['checked']:,}",
+        "known_advisories": f"{known_advisories} known",
     }
 
 
@@ -123,10 +152,16 @@ def section_label(pdf: canvas.Canvas, text: str, x: float, y: float) -> None:
 def page_header(pdf: canvas.Canvas, page: int, section: str) -> None:
     pdf.setFillColor(TEAL_DARK)
     pdf.rect(0, PAGE_HEIGHT - 48, PAGE_WIDTH, 48, fill=1, stroke=0)
-    pdf.setFillColor(HexColor("#BCE0D3"))
+    pdf.setStrokeColor(HexColor("#9FCDC2"))
+    pdf.setLineWidth(1.15)
     pdf.circle(34, PAGE_HEIGHT - 24, 10, fill=0, stroke=1)
-    pdf.line(28, PAGE_HEIGHT - 26, 39, PAGE_HEIGHT - 20)
-    pdf.line(30, PAGE_HEIGHT - 31, 41, PAGE_HEIGHT - 25)
+    pdf.setStrokeColor(HexColor("#D7EBE4"))
+    pdf.setLineCap(1)
+    pdf.setLineWidth(1.2)
+    pdf.line(29, PAGE_HEIGHT - 29, 29, PAGE_HEIGHT - 20)
+    pdf.line(29, PAGE_HEIGHT - 20, 39, PAGE_HEIGHT - 29)
+    pdf.line(39, PAGE_HEIGHT - 29, 39, PAGE_HEIGHT - 20)
+    pdf.setLineCap(0)
     pdf.setFillColor(white)
     pdf.setFont("Times-Bold", 12)
     pdf.drawString(54, PAGE_HEIGHT - 21, "Nightingale Continuum")
@@ -155,7 +190,10 @@ def metric_card(
 ) -> None:
     round_box(pdf, x, y, width, 54, fill=PAPER)
     pdf.setFillColor(TEAL_DARK)
-    pdf.setFont("Times-Bold", 17)
+    value_size = 17.0
+    while value_size > 12 and stringWidth(value, "Times-Bold", value_size) > width - 22:
+        value_size -= 0.5
+    pdf.setFont("Times-Bold", value_size)
     pdf.drawString(x + 11, y + 29, value)
     pdf.setFillColor(MUTED)
     pdf.setFont("Helvetica-Bold", 6.4)
@@ -178,8 +216,8 @@ def diagram_node(
     pdf.setFont("Helvetica-Bold", 7.5)
     pdf.drawCentredString(x + width / 2, y + height - 13, title)
     pdf.setFillColor(MUTED)
-    pdf.setFont("Helvetica", 5.8)
-    lines = wrapped_lines(subtitle, "Helvetica", 5.8, width - 12)
+    pdf.setFont("Helvetica", 6.0)
+    lines = wrapped_lines(subtitle, "Helvetica", 6.0, width - 12)
     text_y = y + height - 24
     for line in lines[:2]:
         pdf.drawCentredString(x + width / 2, text_y, line)
@@ -187,13 +225,34 @@ def diagram_node(
 
 
 def arrow(pdf: canvas.Canvas, x1: float, y1: float, x2: float, y2: float) -> None:
-    pdf.setStrokeColor(HexColor("#8EA7A2"))
-    pdf.setFillColor(HexColor("#8EA7A2"))
+    dx = x2 - x1
+    dy = y2 - y1
+    length = math.hypot(dx, dy)
+    if length == 0:
+        raise ValueError("Arrow endpoints must differ")
+    unit_x = dx / length
+    unit_y = dy / length
+    normal_x = -unit_y
+    normal_y = unit_x
+    head_length = 4.8
+    head_half_width = 2.5
+    base_x = x2 - head_length * unit_x
+    base_y = y2 - head_length * unit_y
+    left_x = base_x + head_half_width * normal_x
+    left_y = base_y + head_half_width * normal_y
+    right_x = base_x - head_half_width * normal_x
+    right_y = base_y - head_half_width * normal_y
+    connector = HexColor("#7F9F99")
+    pdf.setStrokeColor(connector)
+    pdf.setFillColor(connector)
     pdf.setLineWidth(0.8)
-    pdf.line(x1, y1, x2, y2)
-    direction = 1 if x2 >= x1 else -1
-    pdf.line(x2, y2, x2 - 4 * direction, y2 + 2.5)
-    pdf.line(x2, y2, x2 - 4 * direction, y2 - 2.5)
+    pdf.line(x1, y1, base_x, base_y)
+    head = pdf.beginPath()
+    head.moveTo(x2, y2)
+    head.lineTo(left_x, left_y)
+    head.lineTo(right_x, right_y)
+    head.close()
+    pdf.drawPath(head, fill=1, stroke=0)
 
 
 def page_one(pdf: canvas.Canvas) -> None:
@@ -238,8 +297,15 @@ def page_one(pdf: canvas.Canvas) -> None:
     )
 
     metric_card(pdf, 36, 518, 170, metrics["warm_p95"], "Measured warm-path P95")
-    metric_card(pdf, 221, 518, 170, "159 tests", "Backend and required micro-tests")
-    metric_card(pdf, 406, 518, 170, metrics["backend_coverage"], "Line + branch coverage")
+    metric_card(pdf, 221, 518, 170, "159 tests", "Backend tests; 900 property examples")
+    metric_card(
+        pdf,
+        406,
+        518,
+        170,
+        metrics["backend_coverage"],
+        "Backend statement + branch coverage",
+    )
 
     section_label(pdf, "Architecture", 36, 493)
     round_box(pdf, 36, 341, 540, 137, fill=HexColor("#EDF2EE"), radius=10)
@@ -309,6 +375,9 @@ def page_one(pdf: canvas.Canvas) -> None:
     arrow(pdf, 229, 402, 229, 392)
     arrow(pdf, 282, 371, 314, 371)
     arrow(pdf, 369, 392, 369, 402)
+    pdf.setFillColor(MUTED)
+    pdf.setFont("Helvetica-Bold", 5.4)
+    pdf.drawString(51, 359, "AI CAPTURE PATH")
 
     section_label(pdf, "Trust contract", 36, 318)
     round_box(pdf, 36, 76, 540, 227, fill=PAPER, radius=10)
@@ -381,10 +450,10 @@ def page_one(pdf: canvas.Canvas) -> None:
     pdf.setFillColor(TEAL)
     pdf.setFont("Helvetica-Bold", 6.8)
     pdf.drawString(51, 158, "VERIFICATION CONTRACT")
-    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage + 7 E2E")
-    metric_card(pdf, 177, 92, 116, "900", "Property examples")
-    metric_card(pdf, 303, 92, 116, "0 known", "Dependency advisories")
-    metric_card(pdf, 429, 92, 116, "0", "Mutation survivors")
+    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage; 45 tests")
+    metric_card(pdf, 177, 92, 116, metrics["browser_e2e"], "Desktop + mobile E2E")
+    metric_card(pdf, 303, 92, 116, metrics["mutants"], "Generated mutants killed")
+    metric_card(pdf, 429, 92, 116, metrics["known_advisories"], "Advisories at scan time")
     page_footer(pdf)
 
 
@@ -412,44 +481,48 @@ def page_two(pdf: canvas.Canvas) -> None:
     section_label(pdf, "Comprehensive data schema", 36, 650)
     round_box(pdf, 36, 447, 540, 188, fill=PAPER, radius=10)
     nodes = [
-        (49, 574, 83, "Patient", "clinic-scoped"),
-        (151, 574, 83, "Entry", "stable identity"),
-        (253, 574, 83, "Version", "immutable snapshot"),
-        (355, 574, 83, "Prov. span", "version + offsets"),
-        (457, 574, 83, "Highlight", "reason + trust"),
-        (151, 502, 83, "Comment", "thread + assignment"),
-        (253, 502, 83, "Audit event", "metadata hash chain"),
-        (355, 502, 83, "Feedback", "reward + propensity"),
-        (457, 502, 83, "Posterior", "role + clinic shrinkage"),
-        (49, 502, 83, "Task", "owner + urgency"),
-        (202, 457, 96, "Conflict", "explicit disposition"),
-        (337, 457, 96, "Retention", "tier + manifest"),
+        (49, 574, 83, "Patient", "clinic-scoped", PAPER),
+        (151, 574, 83, "Typed entry", "manual | AI-scribed", TEAL_PALE),
+        (253, 574, 83, "Version", "immutable snapshot", PAPER),
+        (355, 574, 83, "Prov. span", "version + offsets", TEAL_PALE),
+        (457, 574, 83, "Highlight", "reason + trust", PAPER),
+        (49, 502, 83, "AI source", "doctor | nurse | patient", PURPLE_PALE),
+        (151, 502, 83, "Collaboration", "comments | tasks | mentions", PAPER),
+        (253, 502, 83, "Control record", "audit | conflict | retention", BLUE_PALE),
+        (355, 502, 83, "Feedback", "action | reward | propensity", TEAL_PALE),
+        (457, 502, 83, "Posterior", "role + clinic shrinkage", PAPER),
     ]
-    for x, y, width, title, subtitle in nodes:
+    for x, y, width, title, subtitle, fill in nodes:
         diagram_node(
             pdf,
             x,
             y,
             width,
-            43 if y > 460 else 34,
+            43,
             title,
             subtitle,
-            fill=TEAL_PALE if title in {"Entry", "Prov. span", "Feedback"} else PAPER,
+            fill=fill,
         )
     for x1, y1, x2, y2 in [
         (133, 596, 148, 596),
         (235, 596, 250, 596),
         (337, 596, 352, 596),
         (439, 596, 454, 596),
+        (132, 524, 174, 574),
         (192, 572, 192, 546),
         (294, 572, 294, 546),
-        (396, 572, 396, 546),
-        (498, 572, 498, 546),
-        (90, 572, 90, 546),
-        (294, 501, 263, 493),
-        (396, 501, 385, 493),
+        (480, 574, 414, 546),
+        (439, 524, 454, 524),
+        (498, 546, 498, 572),
     ]:
         arrow(pdf, x1, y1, x2, y2)
+    pdf.setFillColor(MUTED)
+    pdf.setFont("Helvetica", 5.7)
+    pdf.drawString(
+        49,
+        469,
+        "Lineage stays immutable; collaboration and learning remain separate, scoped records.",
+    )
 
     section_label(pdf, "Authorization matrix", 36, 422)
     x0, y0, row_h = 36, 260, 27
@@ -484,55 +557,99 @@ def page_two(pdf: canvas.Canvas) -> None:
     pdf.rect(x0, y0, sum(widths), row_h * (len(rows) + 1), fill=0, stroke=1)
 
     section_label(pdf, "Atomic integrity path", 36, 238)
-    round_box(pdf, 36, 76, 540, 147, fill=PAPER, radius=10)
+    section_label(pdf, "Assumptions and production boundary", 394, 238)
+    round_box(pdf, 36, 76, 348, 147, fill=PAPER, radius=10)
     y = 201
     y = draw_bullet(
         pdf,
-        "1. Resolve actor identity from the server-side membership; ignore client role claims.",
+        "1. Authenticate the server actor; ignore client-supplied role claims.",
         51,
         y,
-        500,
+        318,
+        size=7.4,
     )
-    y -= 6
+    y -= 5
     y = draw_bullet(
         pdf,
-        "2. Resolve the object inside clinic scope and check role ownership and visibility.",
+        "2. Resolve the object inside clinic scope; enforce ownership and visibility.",
         51,
         y,
-        500,
+        318,
+        size=7.4,
     )
-    y -= 6
+    y -= 5
     y = draw_bullet(
         pdf,
-        (
-            "3. Validate expected version. A stale same-section mutation fails with a "
-            "deterministic conflict receipt."
-        ),
+        "3. Validate expected version; a stale same-section write returns a 409 receipt.",
         51,
         y,
-        500,
+        318,
+        size=7.4,
     )
-    y -= 6
+    y -= 5
     y = draw_bullet(
         pdf,
-        (
-            "4. Append the snapshot, move the current pointer, append metadata-only audit, "
-            "and refresh the glance projection."
-        ),
+        ("4. Append snapshot, metadata-only audit, and glance projection in one transaction."),
         51,
         y,
-        500,
+        318,
+        size=7.4,
     )
-    y -= 6
+    y -= 5
     draw_bullet(
         pdf,
-        (
-            "5. Serialize only fields allowed for the actor; provenance resolution repeats "
-            "scope and integrity checks."
-        ),
+        ("5. Serialize an actor allow-list; provenance rechecks scope, offsets, quote, and hash."),
         51,
         y,
-        500,
+        318,
+        size=7.4,
+    )
+
+    round_box(pdf, 394, 76, 182, 147, fill=TEAL_DARK, stroke=TEAL_DARK, radius=10)
+    pdf.setFillColor(HexColor("#E7B96E"))
+    pdf.setFont("Helvetica-Bold", 6.2)
+    pdf.drawString(409, 202, "ASSUMPTIONS")
+    draw_text(
+        pdf,
+        "Synthetic data, local deterministic provider, and loopback benchmarks.",
+        409,
+        190,
+        152,
+        size=6.25,
+        color=white,
+        leading=8.1,
+    )
+    pdf.setFillColor(HexColor("#E7B96E"))
+    pdf.setFont("Helvetica-Bold", 6.2)
+    pdf.drawString(409, 160, "TRADE-OFF")
+    draw_text(
+        pdf,
+        (
+            "Full snapshots + SQLite favor auditability and reproduction over storage "
+            "efficiency and scale."
+        ),
+        409,
+        148,
+        152,
+        size=6.25,
+        color=white,
+        leading=8.1,
+    )
+    pdf.setFillColor(HexColor("#E7B96E"))
+    pdf.setFont("Helvetica-Bold", 6.2)
+    pdf.drawString(409, 111, "PRODUCTION GATE - NOT CLAIMED")
+    draw_text(
+        pdf,
+        (
+            "OIDC/MFA, PostgreSQL RLS, TLS, managed encryption, centralized audit, and "
+            "independent clinical/security review."
+        ),
+        409,
+        99,
+        152,
+        size=6.15,
+        color=HexColor("#D7EBE4"),
+        leading=7.9,
     )
     page_footer(pdf)
 
@@ -666,7 +783,7 @@ def page_three(pdf: canvas.Canvas) -> None:
     )
 
     section_label(pdf, "Measured evidence and trade-offs", 36, 318)
-    round_box(pdf, 36, 214, 540, 89, fill=PAPER, radius=10)
+    round_box(pdf, 36, 204, 540, 99, fill=PAPER, radius=10)
     metric_card(pdf, 48, 232, 112, metrics["warm_success"], "Warm reads succeeded")
     metric_card(pdf, 171, 232, 112, metrics["warm_median"], "Local median")
     metric_card(pdf, 294, 232, 112, metrics["warm_p95"], "Local P95")
@@ -678,41 +795,81 @@ def page_three(pdf: canvas.Canvas) -> None:
         220,
         "50 warm-ups; loopback Uvicorn; seeded precomputed projection; no LLM on read path.",
     )
+    pdf.drawString(
+        48,
+        211,
+        (
+            "159 backend + 45 frontend tests; 7/7 browser; 1,840/1,840 mutants; "
+            "0 known advisories at scan time."
+        ),
+    )
 
-    section_label(pdf, "Selected primary sources", 36, 191)
+    section_label(pdf, "Selected primary sources - hyperlinked", 36, 184)
     references = [
-        ("[1] HL7 FHIR R5 Provenance", "https://hl7.org/fhir/provenance.html"),
-        ("[2] W3C PROV-O", "https://www.w3.org/TR/prov-o/"),
+        (
+            "[1] HL7 FHIR R5 Provenance",
+            "hl7.org/fhir/provenance",
+            "https://hl7.org/fhir/provenance.html",
+        ),
+        (
+            "[2] W3C PROV-O",
+            "w3.org/TR/prov-o",
+            "https://www.w3.org/TR/prov-o/",
+        ),
         (
             "[3] OWASP API1:2023 BOLA",
+            "owasp.org/API-Security/2023/API1",
             "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
         ),
         (
-            "[4] NIST AI 600-1 Generative AI Profile",
+            "[4] PostgreSQL Row Security",
+            "postgresql.org/docs/current/ddl-rowsecurity",
+            "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+        ),
+        (
+            "[5] NIST AI 600-1 Generative AI Profile",
+            "doi.org/10.6028/NIST.AI.600-1",
             "https://doi.org/10.6028/NIST.AI.600-1",
         ),
         (
-            "[5] Dai et al., AI-scribe safety signals, arXiv 2025",
+            "[6] PDPC Healthcare Sector Guidelines",
+            "pdpc.gov.sg/healthcare-sector",
+            "https://www.pdpc.gov.sg/guidelines-and-consultation/2017/10/advisory-guidelines-for-the-healthcare-sector",
+        ),
+        (
+            "[7] Dai et al., AI-scribe safety signals, 2025",
+            "arxiv.org/abs/2512.04118",
             "https://arxiv.org/abs/2512.04118",
         ),
         (
-            "[6] Ambient scribe evaluation, JAMA Network Open, 2026",
-            "https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2843515",
+            "[8] Brunner et al., JAMA ambient scribe, 2026",
+            "doi.org/10.1001/jamanetworkopen.2025.52870",
+            "https://doi.org/10.1001/jamanetworkopen.2025.52870",
         ),
         (
-            "[7] Mandyam et al., CANDOR, CHIL 2026",
+            "[9] Mandyam et al., CANDOR (CHIL 2026)",
+            "proceedings.mlr.press/v333/mandyam26a",
             "https://proceedings.mlr.press/v333/mandyam26a.html",
         ),
+        (
+            "[10] W3C WCAG 2.2",
+            "w3.org/TR/WCAG22",
+            "https://www.w3.org/TR/WCAG22/",
+        ),
     ]
-    y = 177
-    for label, url in references:
+    for index, (label, display_url, url) in enumerate(references):
+        column = 0 if index < 5 else 1
+        row = index if index < 5 else index - 5
+        x = 42 if column == 0 else 312
+        width = 252 if column == 0 else 258
+        y = 168 - row * 25
         pdf.setFillColor(INK)
-        pdf.setFont("Helvetica", 6.25)
-        pdf.drawString(42, y, label)
+        pdf.setFont("Helvetica-Bold", 6.2)
+        pdf.drawString(x, y, label)
         pdf.setFillColor(TEAL)
-        pdf.drawRightString(570, y, url)
-        pdf.linkURL(url, (300, y - 2, 570, y + 7), relative=0)
-        y -= 15
+        pdf.setFont("Helvetica", 5.8)
+        pdf.drawString(x, y - 9, display_url)
+        pdf.linkURL(url, (x, y - 11, x + width, y + 7), relative=0)
     page_footer(pdf)
 
 
@@ -735,12 +892,19 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "Compress attention",
         "AUTHORIZATION",
         "MATRIX",
+        "AI-scribed",
+        "ASSUMPTIONS AND PRODUCTION BOUNDARY",
+        "PRODUCTION GATE - NOT CLAIMED",
+        "PostgreSQL RLS, TLS",
+        "encryption, centralized audit",
         "Learning earns influence",
         measured_metrics()["warm_p95"],
         "159 tests",
-        "7 E2E",
+        measured_metrics()["browser_e2e"],
+        measured_metrics()["mutants"],
         "Citation-first review",
         "100%",
+        "PDPC Healthcare Sector Guidelines",
         "Synthetic data only",
     ]
     extracted = "\n".join(page.extract_text() or "" for page in reader.pages)
