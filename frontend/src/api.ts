@@ -62,7 +62,7 @@ export const api = {
       userId,
       {
         method: "POST",
-        body: JSON.stringify({ action, display_propensity: 0.5 }),
+        body: JSON.stringify({ action }),
       },
     ),
   createEntry: (
@@ -124,7 +124,13 @@ export const api = {
       entry_id: string;
       status: string;
       provider: string;
-      redaction_receipt: { detector_version: string; entity_counts: Record<string, number> };
+      redaction_receipt: {
+        detector_version: string;
+        entity_counts: Record<string, number>;
+        clinical_anchor_count: number;
+        clinical_anchors_preserved: boolean;
+        passed: boolean;
+      };
       flags: string[];
     }>("/api/v1/scribe/ingest", userId, {
       method: "POST",

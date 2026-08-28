@@ -89,6 +89,8 @@ def test_redaction_contract_is_exact_at_name_boundaries_overlap_and_receipt_vers
         detector_version="continuum-redactor-v1",
         entity_counts={"PERSON": 1, "PHONE_NUMBER": 1},
         sanitized_sha256="dc5a2435558097427b1bb12626c86cf45b1ed2bbcff33758bc9b33c6a8f33b22",
+        clinical_anchor_count=0,
+        clinical_anchors_preserved=True,
         passed=True,
     )
 
@@ -746,6 +748,7 @@ def test_shadow_policy_evaluation_contract_is_exact(app, identities, patient_id)
             standard_error=None,
             ci_95=None,
             overlap_warning=True,
+            exposure_bias_warning=True,
             status="insufficient_data",
             assumptions=assumptions,
         )
@@ -1035,6 +1038,7 @@ def test_shadow_policy_overlap_boundaries_are_exact(app, identities, patient_id)
             standard_error=0.0,
             ci_95=(1.0, 1.0),
             overlap_warning=True,
+            exposure_bias_warning=False,
             status="exploratory",
             assumptions=assumptions,
         )
@@ -1074,6 +1078,7 @@ def test_shadow_policy_overlap_boundaries_are_exact(app, identities, patient_id)
             standard_error=7.8414,
             ci_95=(0.0, 1.0),
             overlap_warning=True,
+            exposure_bias_warning=False,
             status="exploratory",
             assumptions=assumptions,
         )

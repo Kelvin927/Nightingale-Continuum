@@ -43,7 +43,6 @@ class ResolveThreadRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     action: str = Field(pattern="^(accept|reject|pin)$")
-    display_propensity: float = Field(gt=0, le=1)
 
 
 class ScribeIngestRequest(BaseModel):

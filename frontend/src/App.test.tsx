@@ -113,7 +113,13 @@ function configureSuccessApi() {
     entry_id: "entry-scribe",
     status: "proposed",
     provider: "local-deterministic",
-    redaction_receipt: { detector_version: "continuum-redactor-v1", entity_counts: { PERSON: 1 } },
+    redaction_receipt: {
+      detector_version: "continuum-redactor-v1",
+      entity_counts: { PERSON: 1 },
+      clinical_anchor_count: 3,
+      clinical_anchors_preserved: true,
+      passed: true,
+    },
     flags: ["human_review_required"],
   });
   mockedApi.evidenceReview.mockResolvedValue(evidenceReview);

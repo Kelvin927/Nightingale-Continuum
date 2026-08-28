@@ -15,6 +15,10 @@ from .models import Entry, Patient, User
 from .redaction import RedactionReceipt, redact_text
 
 
+class RedactionFidelityError(ValueError):
+    """Raised when privacy filtering cannot preserve clinical anchors exactly."""
+
+
 @dataclass(frozen=True)
 class ScribeDraft:
     title: str
@@ -96,6 +100,10 @@ def ingest_scribe(
         raise ValueError("Unsupported interaction type")
     known_names = [patient.display_name, initiating_actor.display_name]
     redaction = redact_text(transcript, known_names=known_names)
+    if not redaction.receipt.passed:
+        raise RedactionFidelityError(
+            "Redaction did not preserve every safety-relevant clinical anchor"
+        )
     draft = provider.generate(redacted_text=redaction.text, interaction_type=interaction_type)
     entry = create_entry(
         session,

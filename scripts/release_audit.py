@@ -30,6 +30,7 @@ REQUIRED_PATHS = {
     "backend/tests/test_importance_semantics.py",
     "backend/tests/test_property_invariants.py",
     "backend/tests/test_semantic_contracts.py",
+    "backend/tests/test_safety_meaning_contracts.py",
     "frontend/src/accessibility.test.tsx",
     "frontend/src/components/ReviewCopilot.tsx",
     "scripts/security_evidence.py",
@@ -82,11 +83,12 @@ CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 EXPECTED_MUTATION_COUNTS = {
     "audit": 196,
     "care": 248,
-    "evaluation": 218,
-    "importance": 711,
+    "conflicts": 176,
+    "evaluation": 228,
+    "importance": 738,
     "provenance": 105,
-    "redaction": 113,
-    "review": 249,
+    "redaction": 137,
+    "review": 261,
 }
 EXPECTED_MUTATION_TOTAL = sum(EXPECTED_MUTATION_COUNTS.values())
 

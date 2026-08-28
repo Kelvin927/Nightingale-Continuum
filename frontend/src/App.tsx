@@ -350,7 +350,9 @@ export default function App() {
 
   async function submitScribe(interactionType: string, transcript: string) {
     const active = actionContext.current;
-    if (!active.patientId || !active.scribeOpen) return { receipt: {}, flags: [] };
+    if (!active.patientId || !active.scribeOpen) {
+      return { receipt: {}, flags: [], clinicalAnchorCount: 0, clinicalAnchorsPreserved: false };
+    }
     const payload = await api.ingestScribe(active.userId, {
       patient_id: active.patientId,
       interaction_type: interactionType,
@@ -358,7 +360,12 @@ export default function App() {
       source_uri: `session://synthetic/capture-${Date.now()}`,
     });
     await reload(active.userId, active.patientId, active.role);
-    return { receipt: payload.redaction_receipt.entity_counts, flags: payload.flags };
+    return {
+      receipt: payload.redaction_receipt.entity_counts,
+      flags: payload.flags,
+      clinicalAnchorCount: payload.redaction_receipt.clinical_anchor_count,
+      clinicalAnchorsPreserved: payload.redaction_receipt.clinical_anchors_preserved,
+    };
   }
 
   async function askEvidenceReview(question: string, activePatientId: string) {

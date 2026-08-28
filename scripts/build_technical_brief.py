@@ -309,7 +309,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     )
 
     metric_card(pdf, 36, 518, 170, metrics["warm_p95"], "Measured warm-path P95")
-    metric_card(pdf, 221, 518, 170, "159 tests", "Backend tests; 900 property examples")
+    metric_card(pdf, 221, 518, 170, "168 tests", "Backend tests; 900 property examples")
     metric_card(
         pdf,
         406,
@@ -408,8 +408,8 @@ def page_one(pdf: canvas.Canvas) -> None:
     y = draw_bullet(
         pdf,
         (
-            "AI content starts as proposed; human-authored, staff-verified, "
-            "clinician-confirmed, and superseded are visible states."
+            "Support is a trust-state policy score (AI 0.65; clinician-confirmed 0.95), "
+            "not a model-reported or calibrated correctness probability."
         ),
         51,
         y,
@@ -419,8 +419,8 @@ def page_one(pdf: canvas.Canvas) -> None:
     y = draw_bullet(
         pdf,
         (
-            "Citation-first review returns only authorized claims, exact quotes, actions, "
-            "and conflicts; unsupported questions receive an explicit abstention."
+            "Deterministic allergy and medication rules set a risk floor. Citation-first "
+            "review extracts exact spans and abstains when evidence is insufficient."
         ),
         51,
         y,
@@ -430,8 +430,8 @@ def page_one(pdf: canvas.Canvas) -> None:
     y = draw_bullet(
         pdf,
         (
-            "Server-side clinic and role policies protect every object. Patient responses "
-            "are built from an allow-list projection."
+            "Patient summaries and instructions require clinician ownership and confirmation. "
+            "AI drafts remain internal; patient responses use an allow-list projection."
         ),
         51,
         y,
@@ -462,7 +462,7 @@ def page_one(pdf: canvas.Canvas) -> None:
     pdf.setFillColor(TEAL)
     pdf.setFont("Helvetica-Bold", 6.8)
     pdf.drawString(51, 158, "VERIFICATION CONTRACT")
-    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage; 45 tests")
+    metric_card(pdf, 51, 92, 116, "4 x 100%", "Frontend coverage; 46 tests")
     metric_card(pdf, 177, 92, 116, metrics["browser_e2e"], "Desktop + mobile E2E")
     metric_card(pdf, 303, 92, 116, metrics["mutants"], "Generated mutants killed")
     metric_card(pdf, 429, 92, 116, metrics["known_advisories"], "Advisories at scan time")
@@ -501,7 +501,7 @@ def page_two(pdf: canvas.Canvas) -> None:
         (49, 502, 83, "AI source", "doctor | nurse | patient", PURPLE_PALE),
         (151, 502, 83, "Collaboration", "comments | tasks | mentions", PAPER),
         (253, 502, 83, "Control record", "audit | conflict | retention", BLUE_PALE),
-        (355, 502, 83, "Feedback", "action | reward | propensity", TEAL_PALE),
+        (355, 502, 83, "Feedback", "action | reward | exposure", TEAL_PALE),
         (457, 502, 83, "Posterior", "role + clinic shrinkage", PAPER),
     ]
     for x, y, width, title, subtitle, fill in nodes:
@@ -533,7 +533,10 @@ def page_two(pdf: canvas.Canvas) -> None:
     pdf.drawString(
         49,
         469,
-        "Lineage stays immutable; collaboration and learning remain separate, scoped records.",
+        (
+            "Lineage stays immutable; bounded dose/allergy conflicts open review, "
+            "never auto-resolution."
+        ),
     )
 
     section_label(pdf, "Authorization matrix", 36, 422)
@@ -732,8 +735,8 @@ def page_three(pdf: canvas.Canvas) -> None:
     draw_text(
         pdf,
         (
-            "The seeded build correctly reports insufficient interaction data instead of "
-            "manufacturing uplift."
+            "Deterministic exposure (propensity 1.0) reveals surfaced-only feedback bias; "
+            "the build refuses to manufacture uplift."
         ),
         331,
         595,
@@ -747,8 +750,8 @@ def page_three(pdf: canvas.Canvas) -> None:
     draw_text(
         pdf,
         (
-            "Propensity overlap - effective sample size - DR uncertainty - assumptions - "
-            "policy version"
+            "Exposure bias - propensity overlap - effective sample size - DR uncertainty - "
+            "assumptions"
         ),
         331,
         533,
@@ -772,7 +775,16 @@ def page_three(pdf: canvas.Canvas) -> None:
         "Synthetic capture only",
         fill=CRITICAL_PALE,
     )
-    diagram_node(pdf, 161, 382, 92, 48, "Redact", "Names, IDs, phone, email", fill=AMBER_PALE)
+    diagram_node(
+        pdf,
+        161,
+        382,
+        92,
+        48,
+        "Redact + verify",
+        "Identifiers out; clinical anchors intact",
+        fill=AMBER_PALE,
+    )
     diagram_node(pdf, 272, 382, 92, 48, "Draft", "Local provider; AI proposed", fill=PURPLE_PALE)
     diagram_node(pdf, 383, 382, 92, 48, "Human review", "Accept, reject, pin", fill=TEAL_PALE)
     diagram_node(pdf, 494, 382, 68, 48, "Evidence", "Exact span", fill=BLUE_PALE)
@@ -811,7 +823,7 @@ def page_three(pdf: canvas.Canvas) -> None:
         48,
         211,
         (
-            "159 backend + 45 frontend tests; 7/7 browser; 1,840/1,840 mutants; "
+            f"168 backend + 46 frontend tests; 7/7 browser; {metrics['mutants']} mutants; "
             "0 known advisories at scan time."
         ),
     )
@@ -868,13 +880,23 @@ def page_three(pdf: canvas.Canvas) -> None:
             "w3.org/TR/WCAG22",
             "https://www.w3.org/TR/WCAG22/",
         ),
+        (
+            "[11] Owens et al., patient portal AI, 2026",
+            "jamanetwork.com/journals/jamanetworkopen/2851278",
+            "https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2851278",
+        ),
+        (
+            "[12] Cost-aware selective deferral, 2026",
+            "nature.com/articles/s41598-026-40637-w",
+            "https://www.nature.com/articles/s41598-026-40637-w",
+        ),
     ]
     for index, (label, display_url, url) in enumerate(references):
-        column = 0 if index < 5 else 1
-        row = index if index < 5 else index - 5
+        column = 0 if index < 6 else 1
+        row = index if index < 6 else index - 6
         x = 42 if column == 0 else 312
         width = 252 if column == 0 else 258
-        y = 168 - row * 25
+        y = 168 - row * 21
         pdf.setFillColor(INK)
         pdf.setFont("Helvetica-Bold", 6.2)
         pdf.drawString(x, y, label)
@@ -911,7 +933,7 @@ def build_pdf(path: Path = OUTPUT) -> Path:
         "encryption, centralized audit",
         "Learning earns influence",
         measured_metrics()["warm_p95"],
-        "159 tests",
+        "168 tests",
         measured_metrics()["browser_e2e"],
         measured_metrics()["mutants"],
         "Citation-first review",

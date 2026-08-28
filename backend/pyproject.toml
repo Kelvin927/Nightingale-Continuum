@@ -58,6 +58,7 @@ source_paths = ["app"]
 only_mutate = [
   "app/audit.py",
   "app/care.py",
+  "app/conflicts.py",
   "app/evaluation.py",
   "app/importance.py",
   "app/provenance.py",

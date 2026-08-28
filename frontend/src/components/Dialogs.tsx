@@ -197,11 +197,21 @@ export function ScribeDialog({
 }: {
   role: Role;
   onClose: () => void;
-  onSubmit: (interactionType: string, transcript: string) => Promise<{ receipt: Record<string, number>; flags: string[] }>;
+  onSubmit: (interactionType: string, transcript: string) => Promise<{
+    receipt: Record<string, number>;
+    flags: string[];
+    clinicalAnchorCount: number;
+    clinicalAnchorsPreserved: boolean;
+  }>;
 }) {
   const [status, setStatus] = useState<CaptureStatus>("idle");
   const [transcript, setTranscript] = useState("Maya Chen reports dizziness after lisinopril changed from 10 mg to 20 mg. Call +65 9123 4567 after the renal lab result.");
-  const [result, setResult] = useState<{ receipt: Record<string, number>; flags: string[] } | null>(null);
+  const [result, setResult] = useState<{
+    receipt: Record<string, number>;
+    flags: string[];
+    clinicalAnchorCount: number;
+    clinicalAnchorsPreserved: boolean;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -245,7 +255,7 @@ export function ScribeDialog({
           <div className="modal-actions"><button className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={busy || !transcript.trim()} onClick={submit}><Send size={15} />{busy ? "Redacting..." : "Create review draft"}</button></div>
         </div>
       ) : (
-        <div className="receipt-success"><CheckCircle2 size={34} /><h3>Draft submitted for human review</h3><p>The local provider received redacted text only.</p><div className="receipt-counts">{Object.entries(result.receipt).map(([name, count]) => <span key={name}><strong>{count}</strong>{name.replaceAll("_", " ")}</span>)}</div><div className="flag-list">{result.flags.map((flag) => <span key={flag}>{flag.replaceAll("_", " ")}</span>)}</div><button className="primary-button" onClick={onClose}>Return to care note</button></div>
+        <div className="receipt-success"><CheckCircle2 size={34} /><h3>Draft submitted for human review</h3><p>The local provider received redacted text only.</p><div className="receipt-counts">{Object.entries(result.receipt).map(([name, count]) => <span key={name}><strong>{count}</strong>{name.replaceAll("_", " ")}</span>)}<span><strong>{result.clinicalAnchorCount}</strong>clinical anchors checked</span></div><div className="policy-callout"><ShieldCheck size={16} /><span>{result.clinicalAnchorsPreserved ? "Medication, dose, and allergy anchors were preserved exactly." : "Clinical-anchor fidelity failed; do not use this draft."}</span></div><div className="flag-list">{result.flags.map((flag) => <span key={flag}>{flag.replaceAll("_", " ")}</span>)}</div><button className="primary-button" onClick={onClose}>Return to care note</button></div>
       )}
     </DialogShell>
   );

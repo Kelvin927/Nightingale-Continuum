@@ -16,7 +16,7 @@ const glance: Glance = {
         risk_level: "high",
         risk_reason: "Medication changes require review",
         entity_tags: ["medication", "dose_change"],
-        confidence: 0.88,
+        confidence: 0.65,
         trust_state: "ai_proposed",
         status: "suggested",
         rank_score: 6.4,
@@ -47,6 +47,9 @@ test("shows reason, trust state, provenance, and one-action feedback", () => {
   expect(screen.getByText("Medication detail to reconcile")).toBeInTheDocument();
   expect(screen.getByText("Medication changes require review")).toBeInTheDocument();
   expect(screen.getByText("AI proposed")).toBeInTheDocument();
+  expect(screen.getByText("medium support · 65/100")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Why this order"));
+  expect(screen.getByText(/ranking score is not a probability/i)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /exact source/i }));
   expect(onSource).toHaveBeenCalledWith("span-1");
   fireEvent.click(screen.getByRole("button", { name: /pin/i }));
@@ -65,6 +68,58 @@ test("does not expose ranking feedback controls to patients", () => {
     />,
   );
   expect(screen.queryByRole("button", { name: /pin/i })).not.toBeInTheDocument();
+});
+
+test("renders every support-band path and the explicit interpretation contract", () => {
+  const source = glance.groups.act_now[0];
+  const variants: Glance = {
+    ...glance,
+    groups: {
+      ...glance.groups,
+      act_now: [
+        {
+          ...source,
+          id: "explicit-band",
+          title: "Explicit support band",
+          confidence: 0.65,
+          confidence_band: "high",
+          confidence_interpretation: "Reviewer-defined evidence support.",
+          status: "accepted",
+        },
+        {
+          ...source,
+          id: "low-band",
+          title: "Low support fallback",
+          confidence: 0.5,
+          score_factors: { risk: 5 },
+          status: "accepted",
+        },
+        {
+          ...source,
+          id: "high-band",
+          title: "High support fallback",
+          confidence: 0.9,
+          status: "accepted",
+        },
+      ],
+    },
+  };
+  render(
+    <GlanceBoard
+      glance={variants}
+      role="clinician"
+      busyHighlight={null}
+      onSource={vi.fn()}
+      onFeedback={vi.fn()}
+      onTaskSource={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("high support · 65/100")).toHaveAttribute(
+    "title",
+    "Reviewer-defined evidence support.",
+  );
+  expect(screen.getByText("low support · 50/100")).toBeInTheDocument();
+  expect(screen.getByText("high support · 90/100")).toBeInTheDocument();
 });
 
 test("covers bounded feedback, task provenance, assignment states, and noncritical labels", () => {

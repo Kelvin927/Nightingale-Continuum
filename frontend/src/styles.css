@@ -205,7 +205,13 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .tag-row span { padding: 2px 5px; color: #6e7c79; background: #f0f3ef; border: 1px solid #e6ebe6; border-radius: 5px; font-size: 7.5px; text-transform: capitalize; }
 .glance-card-footer { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 9px; padding-top: 8px; border-top: 1px solid #edf0ec; }
 .source-link { display: inline-flex; align-items: center; gap: 5px; padding: 0; color: #176e70; border: 0; background: transparent; font-size: 8.5px; font-weight: 750; cursor: pointer; }
-.confidence { color: #92a09c; font-size: 7.5px; }
+.confidence { color: #70827e; font-size: 7.5px; font-weight: 700; text-transform: capitalize; }
+.confidence-medium { color: #82631a; }
+.confidence-low { color: #9a4943; }
+.score-explainer { margin-top: 7px; color: #71817e; font-size: 7.5px; }
+.score-explainer summary { width: max-content; color: #4f706a; font-weight: 750; cursor: pointer; }
+.score-explainer p { margin: 5px 0 0; line-height: 1.4; }
+.claim-support { display: block; margin-top: 5px; color: #6f827e; font-size: 8px; font-weight: 700; text-transform: capitalize; }
 .feedback-row { display: flex; gap: 5px; margin: 8px -2px -2px; }
 .feedback-row button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px; color: #48645f; border: 1px solid #dde5df; border-radius: 6px; background: #f6f8f5; font-size: 8px; font-weight: 750; cursor: pointer; }
 .feedback-row button:hover { color: var(--teal); border-color: #a9cac0; background: #edf5f0; }

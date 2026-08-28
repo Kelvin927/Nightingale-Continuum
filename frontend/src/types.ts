@@ -90,6 +90,8 @@ export interface HighlightItem {
   risk_reason: string;
   entity_tags: string[];
   confidence: number;
+  confidence_band?: "low" | "medium" | "high";
+  confidence_interpretation?: string;
   trust_state: string;
   status: string;
   rank_score: number;
@@ -152,6 +154,7 @@ export interface PolicyEvaluation {
   standard_error: number | null;
   ci_95: [number, number] | null;
   overlap_warning: boolean;
+  exposure_bias_warning: boolean;
   status: string;
   assumptions: string[];
 }
@@ -209,6 +212,8 @@ export interface ReviewClaim {
   risk_reason: string;
   trust_state: string;
   confidence: number;
+  confidence_band?: "low" | "medium" | "high";
+  confidence_interpretation?: string;
   provenance_span_id: string;
   source_entry_id: string;
   quote: string;

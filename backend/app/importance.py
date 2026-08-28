@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 
 from .audit import append_audit
 from .care import current_version
-from .constants import POLICY_VERSION, RISK_ORDER, RISK_WEIGHT, SAFETY_ENTITY_TAGS
+from .constants import (
+    EVIDENCE_SUPPORT_BY_TRUST,
+    POLICY_VERSION,
+    RISK_ORDER,
+    RISK_WEIGHT,
+    SAFETY_ENTITY_TAGS,
+)
 from .models import (
     CareTask,
     Entry,
@@ -24,6 +30,27 @@ from .models import (
 from .provenance import create_span
 
 SENTENCE_PATTERN = re.compile(r"[^.!?\n]+(?:[.!?]|$)")
+
+
+def evidence_support_score(trust_state: str) -> float:
+    """Return a policy score for evidence support, never a correctness probability."""
+
+    try:
+        return EVIDENCE_SUPPORT_BY_TRUST[trust_state]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported trust state: {trust_state}") from exc
+
+
+def evidence_support_band(score: float) -> str:
+    """Map an evidence-support policy score to a visible review band."""
+
+    if not 0 <= score <= 1:
+        raise ValueError("Evidence support score must be in [0, 1]")
+    if score < 0.6:
+        return "low"
+    if score < 0.85:
+        return "medium"
+    return "high"
 
 
 def _classify_sentence(sentence: str) -> tuple[str, list[str], str, str] | None:
@@ -218,7 +245,7 @@ def generate_highlights_for_entry(
             risk_level=risk_level,
             risk_reason=reason,
             entity_tags=tags,
-            confidence=0.88 if entry.owner_role == "system" else 0.98,
+            confidence=evidence_support_score(entry.trust_state),
             trust_state=entry.trust_state,
             status="suggested" if entry.owner_role == "system" else "accepted",
             base_score=score,
@@ -326,9 +353,13 @@ def _rank_key(highlight: Highlight) -> tuple[int, int, float, datetime]:
 def ranked_highlights(session: Session, patient_id: str, limit: int = 6) -> list[Highlight]:
     candidates = list(
         session.scalars(
-            select(Highlight).where(
+            select(Highlight)
+            .join(ProvenanceSpan)
+            .join(Entry)
+            .where(
                 Highlight.patient_id == patient_id,
                 Highlight.status != "rejected",
+                Entry.current_version_id == ProvenanceSpan.source_version_id,
             )
         )
     )
@@ -355,6 +386,11 @@ def build_glance_projection(session: Session, patient_id: str) -> dict:
                 "risk_reason": item.risk_reason,
                 "entity_tags": item.entity_tags,
                 "confidence": item.confidence,
+                "confidence_band": evidence_support_band(item.confidence),
+                "confidence_interpretation": (
+                    "Policy-defined evidence support; not a calibrated probability of "
+                    "clinical correctness."
+                ),
                 "trust_state": item.trust_state,
                 "status": item.status,
                 "rank_score": item.rank_score,

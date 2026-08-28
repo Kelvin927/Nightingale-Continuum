@@ -252,6 +252,7 @@ export const evaluation: PolicyEvaluation = {
   standard_error: 0.04,
   ci_95: [0.64, 0.8],
   overlap_warning: false,
+  exposure_bias_warning: false,
   status: "shadow_evaluable",
   assumptions: ["Consistency", "Conditional exchangeability", "Positivity"],
 };

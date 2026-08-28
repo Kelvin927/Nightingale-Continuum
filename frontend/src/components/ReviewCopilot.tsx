@@ -116,6 +116,9 @@ export function ReviewCopilotDialog({
                       <TrustBadge state={claim.trust_state} />
                     </div>
                     <p>{claim.risk_reason}</p>
+                    <small className="claim-support" title={claim.confidence_interpretation ?? "Policy-defined evidence support; not a correctness probability."}>
+                      {(claim.confidence_band ?? "review").replaceAll("_", " ")} support · {Math.round(claim.confidence * 100)}/100
+                    </small>
                     <blockquote>{claim.quote}</blockquote>
                     <button onClick={() => onSource(claim.provenance_span_id)}>
                       Verify exact source <ArrowUpRight size={14} />

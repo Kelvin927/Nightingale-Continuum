@@ -90,7 +90,7 @@ def test_generated_highlights_and_source_spans_have_an_exact_persisted_contract(
             "high",
             "Medication or dose information is a known high-risk scribe error class",
             ["dose_change", "medication"],
-            0.88,
+            0.65,
             "ai_proposed",
             "suggested",
             8.0,
@@ -122,7 +122,7 @@ def test_generated_highlights_and_source_spans_have_an_exact_persisted_contract(
             "medium",
             "An unresolved follow-up may require ownership or action",
             ["follow_up"],
-            0.88,
+            0.65,
             "suggested",
             4.0,
             0.0,
@@ -301,6 +301,8 @@ def test_glance_projection_is_an_exact_bounded_projection_of_ranked_domain_rows(
             "risk_reason",
             "entity_tags",
             "confidence",
+            "confidence_band",
+            "confidence_interpretation",
             "trust_state",
             "status",
             "rank_score",
@@ -317,6 +319,15 @@ def test_glance_projection_is_an_exact_bounded_projection_of_ranked_domain_rows(
                 "risk_reason": domain.risk_reason,
                 "entity_tags": domain.entity_tags,
                 "confidence": domain.confidence,
+                "confidence_band": "high"
+                if domain.confidence >= 0.85
+                else "medium"
+                if domain.confidence >= 0.6
+                else "low",
+                "confidence_interpretation": (
+                    "Policy-defined evidence support; "
+                    "not a calibrated probability of clinical correctness."
+                ),
                 "trust_state": domain.trust_state,
                 "status": domain.status,
                 "rank_score": domain.rank_score,
@@ -530,7 +541,7 @@ def test_highlight_generation_handles_whitespace_learning_reuse_and_span_identit
         )
         generated = generate_highlights_for_entry(session, entry=entry)
         assert len(generated) == 2
-        assert [item.confidence for item in generated] == [0.98, 0.98]
+        assert [item.confidence for item in generated] == [0.95, 0.95]
         assert [item.status for item in generated] == ["accepted", "accepted"]
         assert generated[0].adaptive_score == 0.25
         assert generated[0].rank_score == round(generated[0].base_score + 0.25, 4)

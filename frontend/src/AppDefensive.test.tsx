@@ -164,7 +164,13 @@ beforeEach(() => {
     entry_id: "entry-1",
     status: "proposed",
     provider: "local",
-    redaction_receipt: { detector_version: "v1", entity_counts: {} },
+    redaction_receipt: {
+      detector_version: "v1",
+      entity_counts: {},
+      clinical_anchor_count: 0,
+      clinical_anchors_preserved: true,
+      passed: true,
+    },
     flags: [],
   });
   mockedApi.evidenceReview.mockResolvedValue({
@@ -226,6 +232,8 @@ test("stale dialog callbacks fail closed after identity scope is cleared", async
     expect(await captures.scribeSubmit?.("doctor_consult", "Stale")).toEqual({
       receipt: {},
       flags: [],
+      clinicalAnchorCount: 0,
+      clinicalAnchorsPreserved: false,
     });
     await captures.feedback?.("highlight-1", "reject");
   });

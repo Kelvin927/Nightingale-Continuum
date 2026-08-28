@@ -23,6 +23,8 @@ from .care import (
     revert_entry,
     version_diff,
 )
+from .conflicts import detect_structured_conflicts
+from .constants import DETERMINISTIC_DISPLAY_PROPENSITY
 from .database import Database, sqlite_version
 from .delta import build_delta_lens
 from .evaluation import evaluate_shadow_policy
@@ -73,7 +75,12 @@ from .schemas import (
     RevertEntryRequest,
     ScribeIngestRequest,
 )
-from .scribe import LocalDeterministicScribe, ingest_scribe, receipt_dict
+from .scribe import (
+    LocalDeterministicScribe,
+    RedactionFidelityError,
+    ingest_scribe,
+    receipt_dict,
+)
 from .seed import DEMO_USERS, seed_database
 
 API_PREFIX = "/api/v1"
@@ -444,6 +451,7 @@ def create_app(
             request_id=x_request_id,
         )
         generate_highlights_for_entry(session, entry=entry, actor_role=actor.role)
+        detect_structured_conflicts(session, entry)
         if actor.role != "patient":
             _refresh_projection(session, patient)
         session.commit()
@@ -472,6 +480,7 @@ def create_app(
             session.rollback()
             raise _conflict_response(exc) from exc
         generate_highlights_for_entry(session, entry=entry, actor_role=actor.role)
+        detect_structured_conflicts(session, entry)
         patient = require_patient(session, actor, entry.patient_id)
         if actor.role != "patient":
             _refresh_projection(session, patient)
@@ -546,6 +555,8 @@ def create_app(
         except ValueError as exc:
             session.rollback()
             raise HTTPException(status_code=404, detail="Target version not found") from exc
+        generate_highlights_for_entry(session, entry=entry, actor_role=actor.role)
+        detect_structured_conflicts(session, entry)
         patient = require_patient(session, actor, entry.patient_id)
         if actor.role != "patient":
             _refresh_projection(session, patient)
@@ -713,7 +724,7 @@ def create_app(
             actor=actor,
             highlight=highlight,
             action=payload.action,
-            display_propensity=payload.display_propensity,
+            display_propensity=DETERMINISTIC_DISPLAY_PROPENSITY,
         )
         projection = _refresh_projection(session, patient)
         session.commit()
@@ -743,16 +754,27 @@ def create_app(
         )
         if system_actor is None:
             raise HTTPException(status_code=503, detail="System author unavailable")
-        result = ingest_scribe(
-            session,
-            initiating_actor=actor,
-            system_actor=system_actor,
-            patient=patient,
-            interaction_type=payload.interaction_type,
-            transcript=payload.transcript,
-            source_uri=payload.source_uri,
-            provider=request.app.state.scribe_provider,
-        )
+        try:
+            result = ingest_scribe(
+                session,
+                initiating_actor=actor,
+                system_actor=system_actor,
+                patient=patient,
+                interaction_type=payload.interaction_type,
+                transcript=payload.transcript,
+                source_uri=payload.source_uri,
+                provider=request.app.state.scribe_provider,
+            )
+        except RedactionFidelityError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "redaction_fidelity_failed",
+                    "message": "The capture was withheld because clinical anchors changed.",
+                },
+            ) from exc
+        detect_structured_conflicts(session, result.entry)
         _refresh_projection(session, patient)
         session.commit()
         return {

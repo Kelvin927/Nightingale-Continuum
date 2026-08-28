@@ -12,7 +12,8 @@ from dataclasses import asdict, dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import CareTask, Conflict, Highlight, ProvenanceSpan
+from .importance import evidence_support_band
+from .models import CareTask, Conflict, Entry, Highlight, ProvenanceSpan
 
 MAX_CLAIMS = 4
 MAX_ACTIONS = 3
@@ -27,6 +28,8 @@ class ReviewClaim:
     risk_reason: str
     trust_state: str
     confidence: float
+    confidence_band: str
+    confidence_interpretation: str
     provenance_span_id: str
     source_entry_id: str
     quote: str
@@ -104,12 +107,14 @@ def build_evidence_review(
     rows = session.execute(
         select(Highlight, ProvenanceSpan)
         .join(ProvenanceSpan)
+        .join(Entry)
         .where(
             Highlight.clinic_id == clinic_id,
             Highlight.patient_id == patient_id,
             Highlight.status != "rejected",
             ProvenanceSpan.clinic_id == clinic_id,
             ProvenanceSpan.patient_id == patient_id,
+            Entry.current_version_id == ProvenanceSpan.source_version_id,
         )
         .order_by(Highlight.rank_score.desc(), Highlight.created_at.desc())
     ).all()
@@ -121,6 +126,11 @@ def build_evidence_review(
             risk_reason=highlight.risk_reason,
             trust_state=highlight.trust_state,
             confidence=highlight.confidence,
+            confidence_band=evidence_support_band(highlight.confidence),
+            confidence_interpretation=(
+                "Policy-defined evidence support; not a calibrated probability of clinical "
+                "correctness."
+            ),
             provenance_span_id=span.id,
             source_entry_id=span.source_entry_id,
             quote=span.quote,

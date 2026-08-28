@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 from .constants import REDACTION_VERSION
@@ -22,6 +23,8 @@ class RedactionReceipt:
     detector_version: str
     entity_counts: dict[str, int]
     sanitized_sha256: str
+    clinical_anchor_count: int
+    clinical_anchors_preserved: bool
     passed: bool
 
 
@@ -66,6 +69,21 @@ PATTERNS: tuple[tuple[str, re.Pattern[str], float], ...] = (
         0.84,
     ),
 )
+
+CLINICAL_ANCHOR_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|units?)\b|"
+    r"\b(?:allerg(?:y|ic)|anaphylaxis|medication|dose|penicillin|lisinopril|metformin)\b",
+    re.IGNORECASE,
+)
+
+
+def _clinical_anchor_signature(text: str) -> Counter[str]:
+    """Count safety-relevant tokens whose loss could change clinical meaning."""
+
+    return Counter(
+        re.sub(r"\s+", "", match.group()).casefold()
+        for match in CLINICAL_ANCHOR_PATTERN.finditer(text)
+    )
 
 
 def _known_name_findings(text: str, known_names: list[str]) -> list[Finding]:
@@ -116,10 +134,18 @@ def redact_text(text: str, *, known_names: list[str] | None = None) -> Redaction
     counts: dict[str, int] = {}
     for item in normalized:
         counts[item.entity_type] = counts.get(item.entity_type, 0) + 1
+    original_anchors = _clinical_anchor_signature(text)
+    sanitized_anchors = _clinical_anchor_signature(sanitized)
+    clinical_anchors_preserved = original_anchors == sanitized_anchors
+    privacy_entities_removed = all(
+        text[item.start : item.end].casefold() not in sanitized.casefold() for item in normalized
+    )
     receipt = RedactionReceipt(
         detector_version=REDACTION_VERSION,
         entity_counts=counts,
         sanitized_sha256=hashlib.sha256(sanitized.encode()).hexdigest(),
-        passed=True,
+        clinical_anchor_count=sum(original_anchors.values()),
+        clinical_anchors_preserved=clinical_anchors_preserved,
+        passed=privacy_entities_removed and clinical_anchors_preserved,
     )
     return RedactionResult(sanitized, tuple(normalized), receipt)

@@ -86,7 +86,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   expect((calls[0][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
   expect((calls[1][1]?.headers as Headers).get("X-Demo-User")).toBe("user-1");
   expect((calls[1][1]?.headers as Headers).get("Content-Type")).toBe("application/json");
-  expect(calls[7][1]).toMatchObject({ method: "POST", body: JSON.stringify({ action: "pin", display_propensity: 0.5 }) });
+  expect(calls[7][1]).toMatchObject({ method: "POST", body: JSON.stringify({ action: "pin" }) });
   expect(calls[9][1]).toMatchObject({ method: "PATCH" });
   expect(calls[11][1]?.body).toBe(JSON.stringify({
     target_version: 1,

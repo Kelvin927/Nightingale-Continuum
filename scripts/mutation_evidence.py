@@ -16,11 +16,12 @@ BACKEND = ROOT / "backend"
 EXPECTED_CHECKED_BY_MODULE = {
     "audit": 196,
     "care": 248,
-    "evaluation": 218,
-    "importance": 711,
+    "conflicts": 176,
+    "evaluation": 228,
+    "importance": 738,
     "provenance": 105,
-    "redaction": 113,
-    "review": 249,
+    "redaction": 137,
+    "review": 261,
 }
 EXPECTED_TOTAL = sum(EXPECTED_CHECKED_BY_MODULE.values())
 

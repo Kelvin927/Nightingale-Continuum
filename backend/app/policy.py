@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .constants import PATIENT_VISIBLE_ENTRY_TYPES
+from .constants import CLINICIAN_APPROVED_PATIENT_ENTRY_TYPES, PATIENT_VISIBLE_ENTRY_TYPES
 from .models import CommentThread, Entry, Patient, User
 
 
@@ -46,10 +46,14 @@ def require_patient(session: Session, actor: User, patient_id: str) -> Patient:
 
 
 def patient_can_read_entry(entry: Entry) -> bool:
+    if entry.visibility != "patient" or entry.entry_type not in PATIENT_VISIBLE_ENTRY_TYPES:
+        return False
+    if entry.entry_type == "patient_insight":
+        return entry.owner_role == "patient" and entry.author_id is not None
     return (
-        entry.visibility == "patient"
-        and entry.entry_type in PATIENT_VISIBLE_ENTRY_TYPES
-        and not entry.entry_type.startswith("ai_")
+        entry.entry_type in CLINICIAN_APPROVED_PATIENT_ENTRY_TYPES
+        and entry.owner_role == "clinician"
+        and entry.trust_state == "clinician_confirmed"
     )
 
 
@@ -87,6 +91,14 @@ def require_create_entry(actor: User, entry_type: str, visibility: str) -> None:
         raise forbidden("entry_type_not_permitted")
     if actor.role == "patient" and visibility != "patient":
         raise forbidden("patient_visibility_required")
+    if actor.role == "staff" and visibility == "patient":
+        raise forbidden("clinician_confirmation_required")
+    if (
+        actor.role == "clinician"
+        and visibility == "patient"
+        and entry_type not in CLINICIAN_APPROVED_PATIENT_ENTRY_TYPES
+    ):
+        raise forbidden("patient_entry_type_required")
 
 
 def require_internal_collaboration(actor: User) -> None:

@@ -21,6 +21,7 @@ class PolicyEvaluation:
     standard_error: float | None
     ci_95: tuple[float, float] | None
     overlap_warning: bool
+    exposure_bias_warning: bool
     status: str
     assumptions: tuple[str, ...]
 
@@ -55,6 +56,7 @@ def evaluate_shadow_policy(session: Session, clinic_id: str) -> PolicyEvaluation
             standard_error=None,
             ci_95=None,
             overlap_warning=True,
+            exposure_bias_warning=True,
             status="insufficient_data",
             assumptions=assumptions,
         )
@@ -76,7 +78,12 @@ def evaluate_shadow_policy(session: Session, clinic_id: str) -> PolicyEvaluation
     else:
         standard_error = 0.0
     effective_sample_size = (sum(weights) ** 2) / max(1e-12, sum(w**2 for w in weights))
-    overlap_warning = effective_sample_size < max(5.0, 0.25 * len(records)) or max(weights) > 10
+    exposure_bias_warning = all(item.display_propensity >= 0.999 for item in records)
+    overlap_warning = (
+        effective_sample_size < max(5.0, 0.25 * len(records))
+        or max(weights) > 10
+        or exposure_bias_warning
+    )
     lower = max(0.0, estimate - 1.96 * standard_error)
     upper = min(1.0, estimate + 1.96 * standard_error)
     status = "exploratory" if len(records) < 50 or overlap_warning else "shadow_evaluable"
@@ -89,6 +96,7 @@ def evaluate_shadow_policy(session: Session, clinic_id: str) -> PolicyEvaluation
         standard_error=round(standard_error, 4),
         ci_95=(round(lower, 4), round(upper, 4)),
         overlap_warning=overlap_warning,
+        exposure_bias_warning=exposure_bias_warning,
         status=status,
         assumptions=assumptions,
     )

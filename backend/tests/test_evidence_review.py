@@ -376,7 +376,7 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 "critical",
                 "Allergy or severe reaction language requires prominent review",
                 "clinician_confirmed",
-                0.98,
+                0.95,
                 "Allergy: penicillin caused facial swelling in childhood.",
             ),
             (
@@ -384,7 +384,7 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 "high",
                 "Medication or dose information is a known high-risk scribe error class",
                 "clinician_confirmed",
-                0.98,
+                0.95,
                 "Obtain renal function lab before deciding on the medication dose.",
             ),
             (
@@ -392,7 +392,7 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 "high",
                 "Medication or dose information is a known high-risk scribe error class",
                 "clinician_confirmed",
-                0.98,
+                0.95,
                 "Dizziness may be temporally associated with the recent lisinopril dose increase; "
                 "causality is not established.",
             ),
@@ -401,10 +401,19 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 "high",
                 "Medication or dose information is a known high-risk scribe error class",
                 "ai_proposed",
-                0.88,
+                0.65,
                 "Patient reports dizziness since the lisinopril dose changed from 10 mg to 20 mg.",
             ),
         ]
+        assert [claim.confidence_band for claim in overview.claims] == [
+            "high",
+            "high",
+            "high",
+            "medium",
+        ]
+        assert {claim.confidence_interpretation for claim in overview.claims} == {
+            "Policy-defined evidence support; not a calibrated probability of clinical correctness."
+        }
         assert all(claim.provenance_span_id and claim.source_entry_id for claim in overview.claims)
         assert [
             (action.title, action.urgency, action.assigned_to, action.due_at)

@@ -22,8 +22,7 @@ export function ResearchPanel({ evaluation }: { evaluation: PolicyEvaluation | n
         <article className="method-card"><div className="method-icon"><Activity /></div><h3>Bounded learning</h3><p>Beta posterior shrinkage limits sparse feedback to +/-0.75 points. Critical risks and medication/allergy signals stay in protected bands.</p></article>
       </div>
       <div className="assumption-panel"><div className="assumption-title"><BookOpenCheck size={18} /><div><h3>Identification assumptions</h3><p>Visible because off-policy estimates are conditional, not magic.</p></div></div><ol>{evaluation?.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}</ol></div>
-      {(evaluation?.overlap_warning || evaluation?.status === "insufficient_data") && <div className="research-warning"><AlertTriangle size={18} /><div><strong>Do not promote this policy.</strong><p>The synthetic evidence is insufficient for a reliable policy comparison. Collect governed feedback and diagnose overlap first.</p></div></div>}
+      {(evaluation?.overlap_warning || evaluation?.exposure_bias_warning || evaluation?.status === "insufficient_data") && <div className="research-warning"><AlertTriangle size={18} /><div><strong>Do not promote this policy.</strong><p>The synthetic evidence is insufficient for a reliable policy comparison. Only surfaced items receive feedback in this deterministic prototype, so exposure bias and overlap must be addressed before promotion.</p></div></div>}
     </section>
   );
 }
-

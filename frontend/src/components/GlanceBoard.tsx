@@ -33,6 +33,13 @@ function riskLabel(value: string) {
   return value === "critical" ? "Critical" : value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function supportBand(item: HighlightItem) {
+  if (item.confidence_band) return item.confidence_band;
+  if (item.confidence < 0.6) return "low";
+  if (item.confidence < 0.85) return "medium";
+  return "high";
+}
+
 function HighlightCard({
   item,
   role,
@@ -61,6 +68,9 @@ function HighlightCard({
 
   const canTrain = role === "clinician" || role === "staff";
   const needsReview = item.trust_state === "ai_proposed" && item.status === "suggested";
+  const adaptiveScore = item.score_factors.adaptive ?? 0;
+  const fixedScore = item.rank_score - adaptiveScore;
+  const band = supportBand(item);
   return (
     <article className={`glance-card risk-${item.risk_level}`}>
       <div className="glance-card-topline">
@@ -81,8 +91,19 @@ function HighlightCard({
         <button className="source-link" onClick={() => onSource(item.provenance_span_id)}>
           <Link2 size={14} /> Exact source
         </button>
-        <span className="confidence">{Math.round(item.confidence * 100)}% extraction confidence</span>
+        <span
+          className={`confidence confidence-${band}`}
+          title={item.confidence_interpretation ?? "Policy-defined evidence support; not a correctness probability."}
+        >
+          {band} support · {Math.round(item.confidence * 100)}/100
+        </span>
       </div>
+      <details className="score-explainer">
+        <summary>Why this order</summary>
+        <p>
+          Rank {item.rank_score.toFixed(2)} = fixed {fixedScore.toFixed(2)} + bounded feedback {adaptiveScore.toFixed(2)}. Ranking score is not a probability.
+        </p>
+      </details>
       {canTrain && needsReview && (
         <div className="feedback-row" aria-label="Review AI suggestion">
           <button disabled={busy} onClick={() => onFeedback(item.id, "accept")}>
@@ -217,4 +238,3 @@ export function GlanceBoard({
     </section>
   );
 }
-
