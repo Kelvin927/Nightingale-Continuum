@@ -26,7 +26,7 @@ def valid_configuration(**overrides) -> dict:
         "schema_version": "2026-09-01",
         "clinic_display_name": "Northstar Family Medicine",
         "timezone": "Asia/Singapore",
-        "enabled_languages": ["en-SG", "zh-SG"],
+        "enabled_languages": ["en-SG", "ms-SG", "zh-SG"],
         "delivery_channels": ["whatsapp", "sms"],
         "features": {
             "streaming_capture": True,
@@ -118,7 +118,7 @@ def test_admin_schema_and_active_configuration_endpoints(client, identities) -> 
     assert body["revision"] == 1
     assert body["status"] == "active"
     assert body["activated_by"] is None
-    assert body["configuration"]["enabled_languages"] == ["en-SG", "zh-SG"]
+    assert body["configuration"]["enabled_languages"] == ["en-SG", "ms-SG", "zh-SG"]
 
     for path in (
         "/api/v1/admin/clinic-config/schema",
@@ -133,7 +133,7 @@ def test_activation_versions_audits_and_idempotently_reuses_same_hash(
     client, app, identities
 ) -> None:
     revised = valid_configuration(
-        enabled_languages=["en-SG", "zh-SG", "ms-SG"],
+        enabled_languages=["en-SG", "ms-SG", "zh-SG", "ta-SG"],
         delivery_channels=["whatsapp", "voice"],
     )
     first = client.post(

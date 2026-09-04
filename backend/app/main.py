@@ -17,6 +17,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audit import append_audit, verify_audit_chain
+from .capture import (
+    CaptureContractError,
+    add_segment,
+    finalize_capture,
+    review_safety_signal,
+    serialize_capture,
+    serialize_signal,
+    start_capture,
+)
 from .care import (
     VersionConflictError,
     create_entry,
@@ -49,6 +58,7 @@ from .importance import (
 )
 from .models import (
     AuditEvent,
+    CaptureSession,
     Comment,
     CommentThread,
     Conflict,
@@ -59,6 +69,7 @@ from .models import (
     OutboundDelivery,
     Patient,
     ProvenanceSpan,
+    SafetySignal,
     User,
 )
 from .policy import (
@@ -92,7 +103,10 @@ from .schemas import (
     ResolveThreadRequest,
     RetentionRunRequest,
     RevertEntryRequest,
+    SafetySignalReviewRequest,
     ScribeIngestRequest,
+    StartCaptureRequest,
+    StreamSegmentRequest,
 )
 from .scribe import (
     LocalDeterministicScribe,
@@ -256,6 +270,13 @@ def _delivery_error(exc: DeliveryPolicyError) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail={"code": exc.code, "message": exc.message},
+    )
+
+
+def _capture_error(exc: CaptureContractError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": exc.code, "message": str(exc)},
     )
 
 
@@ -917,6 +938,158 @@ def create_app(
             "rank_score": highlight.rank_score,
             "projection_revision": projection.source_revision,
         }
+
+    @app.post(f"{API_PREFIX}/patients/{{patient_id}}/captures", status_code=201)
+    def capture_start(
+        patient_id: str,
+        payload: StartCaptureRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        patient = require_patient(session, actor, patient_id)
+        try:
+            capture = start_capture(
+                session,
+                actor=actor,
+                patient=patient,
+                interaction_type=payload.interaction_type,
+            )
+        except CaptureContractError as exc:
+            session.rollback()
+            raise _capture_error(exc) from exc
+        session.commit()
+        return serialize_capture(
+            session,
+            capture,
+            include_clinical_signals=can_view_internal(actor),
+        )
+
+    @app.get(f"{API_PREFIX}/captures/{{capture_id}}")
+    def capture_get(capture_id: str, session: SessionDep, actor: ActorDep) -> dict:
+        capture = session.get(CaptureSession, capture_id)
+        if capture is None:
+            raise conceal()
+        require_patient(session, actor, capture.patient_id)
+        return serialize_capture(
+            session,
+            capture,
+            include_clinical_signals=can_view_internal(actor),
+        )
+
+    @app.post(f"{API_PREFIX}/captures/{{capture_id}}/segments", status_code=201)
+    def capture_segment(
+        capture_id: str,
+        payload: StreamSegmentRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        capture = session.get(CaptureSession, capture_id)
+        if capture is None:
+            raise conceal()
+        require_patient(session, actor, capture.patient_id)
+        started = monotonic()
+        try:
+            result = add_segment(
+                session,
+                actor=actor,
+                capture=capture,
+                payload=payload,
+            )
+        except CaptureContractError as exc:
+            session.rollback()
+            raise _capture_error(exc) from exc
+        session.commit()
+        response = serialize_capture(
+            session,
+            capture,
+            include_clinical_signals=can_view_internal(actor),
+        )
+        response["ingestion"] = {
+            "segment_id": result.segment.id,
+            "replayed": result.replayed,
+            "new_safety_signal_ids": (
+                [item.id for item in result.signals] if can_view_internal(actor) else []
+            ),
+            "server_processing_ms": round((monotonic() - started) * 1_000, 3),
+            "latency_scope": "API processing only; excludes ASR and network transit",
+        }
+        return response
+
+    @app.post(f"{API_PREFIX}/captures/{{capture_id}}/finalize")
+    def capture_finalize(
+        capture_id: str,
+        request: Request,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        capture = session.get(CaptureSession, capture_id)
+        if capture is None:
+            raise conceal()
+        patient = require_patient(session, actor, capture.patient_id)
+        system_actor = session.scalar(
+            select(User).where(User.clinic_id == actor.clinic_id, User.role == "system")
+        )
+        if system_actor is None:
+            raise HTTPException(status_code=503, detail="System author unavailable")
+        try:
+            result = finalize_capture(
+                session,
+                actor=actor,
+                system_actor=system_actor,
+                patient=patient,
+                capture=capture,
+                provider=request.app.state.scribe_gateway,
+            )
+        except CaptureContractError as exc:
+            session.rollback()
+            raise _capture_error(exc) from exc
+        except RedactionFidelityError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "redaction_fidelity_failed",
+                    "message": "The capture was withheld because clinical anchors changed.",
+                },
+            ) from exc
+        if not result.replayed:
+            _refresh_projection(session, patient)
+        session.commit()
+        response = serialize_capture(
+            session,
+            capture,
+            include_clinical_signals=can_view_internal(actor),
+        )
+        response["finalization"] = {
+            "replayed": result.replayed,
+            "entry_id": result.entry.id,
+        }
+        return response
+
+    @app.post(f"{API_PREFIX}/safety-signals/{{signal_id}}/review")
+    def safety_signal_review(
+        signal_id: str,
+        payload: SafetySignalReviewRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        signal = session.get(SafetySignal, signal_id)
+        if signal is None:
+            raise conceal()
+        require_patient(session, actor, signal.patient_id)
+        try:
+            reviewed = review_safety_signal(
+                session,
+                actor=actor,
+                signal=signal,
+                decision=payload.decision,
+                rationale=payload.rationale,
+            )
+        except CaptureContractError as exc:
+            session.rollback()
+            raise _capture_error(exc) from exc
+        session.commit()
+        return serialize_signal(reviewed)
 
     @app.post(f"{API_PREFIX}/scribe/ingest", status_code=201)
     def scribe_ingest(

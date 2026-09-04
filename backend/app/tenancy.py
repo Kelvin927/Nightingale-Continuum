@@ -7,6 +7,7 @@ from sqlalchemy.orm import ORMExecuteState, Session, with_loader_criteria
 
 from .models import (
     AuditEvent,
+    CaptureSession,
     CareTask,
     ClinicConfigVersion,
     CommentThread,
@@ -21,6 +22,8 @@ from .models import (
     PatientContact,
     ProvenanceSpan,
     RetentionManifest,
+    SafetySignal,
+    TranscriptSegment,
     User,
 )
 
@@ -28,6 +31,7 @@ TENANT_SESSION_KEY = "nightingale_clinic_id"
 TENANT_SCOPED_MODELS = (
     AuditEvent,
     CareTask,
+    CaptureSession,
     ClinicConfigVersion,
     CommentThread,
     Conflict,
@@ -41,6 +45,8 @@ TENANT_SCOPED_MODELS = (
     PatientContact,
     ProvenanceSpan,
     RetentionManifest,
+    SafetySignal,
+    TranscriptSegment,
     User,
 )
 

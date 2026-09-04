@@ -158,4 +158,22 @@ CREATE POLICY clinic_isolation ON clinic_config_versions
     USING (clinic_id = app_private.current_clinic_id())
     WITH CHECK (clinic_id = app_private.current_clinic_id());
 
+ALTER TABLE capture_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE capture_sessions FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_isolation ON capture_sessions
+    USING (clinic_id = app_private.current_clinic_id())
+    WITH CHECK (clinic_id = app_private.current_clinic_id());
+
+ALTER TABLE transcript_segments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transcript_segments FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_isolation ON transcript_segments
+    USING (clinic_id = app_private.current_clinic_id())
+    WITH CHECK (clinic_id = app_private.current_clinic_id());
+
+ALTER TABLE safety_signals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE safety_signals FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_isolation ON safety_signals
+    USING (clinic_id = app_private.current_clinic_id())
+    WITH CHECK (clinic_id = app_private.current_clinic_id());
+
 COMMIT;

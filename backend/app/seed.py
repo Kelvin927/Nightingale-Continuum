@@ -74,7 +74,7 @@ def _ensure_demo_configurations(session: Session) -> None:
             configuration=ClinicConfiguration(
                 clinic_display_name="Northstar Family Medicine",
                 timezone="Asia/Singapore",
-                enabled_languages=["en-SG", "zh-SG"],
+                enabled_languages=["en-SG", "ms-SG", "zh-SG"],
                 delivery_channels=["whatsapp", "sms"],
                 features={
                     "streaming_capture": True,

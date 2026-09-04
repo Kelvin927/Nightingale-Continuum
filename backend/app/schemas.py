@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class CreateEntryRequest(BaseModel):
@@ -57,6 +57,58 @@ class ScribeIngestRequest(BaseModel):
         if "://" not in value:
             raise ValueError("source_uri must include a URI scheme")
         return value
+
+
+class StartCaptureRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    interaction_type: str = Field(pattern="^(doctor_consult|nurse_consult|patient_session)$")
+
+
+class LanguageSpanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    language_tag: str = Field(pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
+    start_offset: int = Field(ge=0)
+    end_offset: int = Field(gt=0)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class StreamSegmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    chunk_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,79}$")
+    sequence: int = Field(ge=1)
+    start_ms: int = Field(ge=0)
+    end_ms: int = Field(gt=0)
+    speaker_label: str = Field(pattern="^(clinician|staff|patient|unknown|overlap)$")
+    text: str = Field(min_length=1, max_length=5_000)
+    language_spans: list[LanguageSpanRequest] = Field(min_length=1, max_length=24)
+    asr_confidence: float = Field(ge=0.0, le=1.0)
+    audio_quality: float = Field(ge=0.0, le=1.0)
+    correction_of_segment_id: str | None = Field(default=None, min_length=3, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_timeline_and_spans(self) -> StreamSegmentRequest:
+        if self.end_ms <= self.start_ms:
+            raise ValueError("end_ms must be greater than start_ms")
+        previous_end = 0
+        for span in self.language_spans:
+            if span.end_offset > len(self.text):
+                raise ValueError("language span exceeds transcript text")
+            if span.end_offset <= span.start_offset:
+                raise ValueError("language span must have positive width")
+            if span.start_offset < previous_end:
+                raise ValueError("language spans must be sorted and non-overlapping")
+            previous_end = span.end_offset
+        return self
+
+
+class SafetySignalReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    decision: str = Field(pattern="^(confirm|dismiss)$")
+    rationale: str = Field(min_length=5, max_length=280)
 
 
 class EvidenceReviewRequest(BaseModel):

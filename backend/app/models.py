@@ -368,3 +368,95 @@ class ClinicConfigVersion(Base):
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
     activated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class CaptureSession(Base):
+    __tablename__ = "capture_sessions"
+    __table_args__ = (
+        Index("ix_capture_sessions_patient_status", "patient_id", "status"),
+        Index("ix_capture_sessions_clinic_started", "clinic_id", "started_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    initiated_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    interaction_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="streaming")
+    latest_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stream_contract_version: Mapped[str] = mapped_column(String(24), nullable=False)
+    capability_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    finalized_entry_id: Mapped[str | None] = mapped_column(ForeignKey("entries.id"), nullable=True)
+    provider_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    provider_failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TranscriptSegment(Base):
+    __tablename__ = "transcript_segments"
+    __table_args__ = (
+        UniqueConstraint("capture_session_id", "sequence", name="uq_segment_sequence"),
+        UniqueConstraint("capture_session_id", "chunk_id", name="uq_segment_chunk"),
+        Index("ix_transcript_segments_capture_sequence", "capture_session_id", "sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    capture_session_id: Mapped[str] = mapped_column(
+        ForeignKey("capture_sessions.id"), nullable=False
+    )
+    correction_of_segment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("transcript_segments.id"), nullable=True
+    )
+    chunk_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    speaker_label: Mapped[str] = mapped_column(String(24), nullable=False)
+    verbatim_text: Mapped[str] = mapped_column(Text, nullable=False)
+    language_spans: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+    asr_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    audio_quality: Mapped[float] = mapped_column(Float, nullable=False)
+    processing_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    processing_reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="provisional")
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class SafetySignal(Base):
+    __tablename__ = "safety_signals"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_segment_id",
+            "signal_type",
+            "source_start_offset",
+            "source_end_offset",
+            name="uq_segment_safety_signal",
+        ),
+        Index("ix_safety_signals_patient_state", "patient_id", "review_state"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    capture_session_id: Mapped[str] = mapped_column(
+        ForeignKey("capture_sessions.id"), nullable=False
+    )
+    source_segment_id: Mapped[str] = mapped_column(
+        ForeignKey("transcript_segments.id"), nullable=False
+    )
+    signal_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    normalized_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    evidence_quote: Mapped[str] = mapped_column(Text, nullable=False)
+    source_start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_quality: Mapped[str] = mapped_column(String(24), nullable=False)
+    review_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    review_rationale: Mapped[str | None] = mapped_column(String(280), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
