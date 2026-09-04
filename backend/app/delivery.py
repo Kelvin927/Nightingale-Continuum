@@ -4,20 +4,34 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from typing import NoReturn
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audit import append_audit
 from .care import current_version
-from .models import Entry, OutboundDelivery, Patient, PatientContact, User
+from .models import (
+    CareTask,
+    DeliveryFollowUp,
+    Entry,
+    OutboundDelivery,
+    Patient,
+    PatientContact,
+    User,
+)
 from .policy import patient_can_read_entry
 from .terminology import assess_medication_terminology
 
 SAFE_PROVIDER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}\Z")
 SAFE_FAILURE_CODE = re.compile(r"[a-z0-9][a-z0-9._-]{0,79}\Z")
+WEB_URL_PATTERN = re.compile(r"https?://[^\s<>()]+", re.IGNORECASE)
+SYNTHETIC_APPOINTMENT_PATH = re.compile(r"/synthetic/[A-Za-z0-9][A-Za-z0-9._~-]{0,127}\Z")
+COMMUNICATION_PURPOSES = {"care_summary", "patient_instruction", "appointment_invitation"}
+SYNTHETIC_APPOINTMENT_HOSTS = {"appointments.example.test"}
 ALLOWED_TRANSITIONS = {
     "queued": {"accepted", "failed"},
     "accepted": {"delivered", "failed"},
@@ -34,7 +48,7 @@ class DeliveryPolicyError(ValueError):
         return self.message
 
 
-def _deny(code: str, message: str) -> None:
+def _deny(code: str, message: str) -> NoReturn:
     raise DeliveryPolicyError(code, message)
 
 
@@ -42,6 +56,60 @@ def _safe_provider_id(value: str) -> str:
     if SAFE_PROVIDER_ID.fullmatch(value):
         return value
     return f"sha256:{sha256(value.encode('utf-8')).hexdigest()[:56]}"
+
+
+def _appointment_link(content: str) -> str:
+    links = [match.group(0).rstrip(".,;!?") for match in WEB_URL_PATTERN.finditer(content)]
+    if len(links) != 1:
+        _deny(
+            "appointment_link_count_invalid",
+            "An appointment invitation must contain exactly one HTTPS link",
+        )
+    link = links[0]
+    try:
+        parsed = urlsplit(link)
+        port = parsed.port
+    except ValueError:
+        _deny(
+            "appointment_link_not_approved",
+            "The appointment link is outside the synthetic allow-listed origin and path",
+        )
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname not in SYNTHETIC_APPOINTMENT_HOSTS
+        or port not in {None, 443}
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+        or parsed.query
+        or SYNTHETIC_APPOINTMENT_PATH.fullmatch(parsed.path) is None
+    ):
+        _deny(
+            "appointment_link_not_approved",
+            "The appointment link is outside the synthetic allow-listed origin and path",
+        )
+    return link
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _follow_up_owner_id(session: Session, actor: User) -> str:
+    if actor.role != "admin":
+        return actor.id
+    for role in ("staff", "clinician"):
+        owner_id = session.scalar(
+            select(User.id)
+            .where(User.clinic_id == actor.clinic_id, User.role == role)
+            .order_by(User.id)
+        )
+        if owner_id is not None:
+            return owner_id
+    _deny(
+        "follow_up_owner_unavailable",
+        "Appointment escalation requires an active staff or clinician owner",
+    )
 
 
 def queue_delivery(
@@ -56,6 +124,9 @@ def queue_delivery(
     confirm_clinical_review: bool,
     confirm_patient_identity: bool,
     confirm_medication_and_dose: bool,
+    communication_purpose: str = "care_summary",
+    confirm_appointment_details: bool = False,
+    acknowledgement_window_minutes: int = 1_440,
     correction_for: OutboundDelivery | None = None,
 ) -> OutboundDelivery:
     """Create the durable outbox row in the same transaction as its audit receipt."""
@@ -76,6 +147,21 @@ def queue_delivery(
         _deny("delivery_version_conflict", "The entry changed after delivery review")
     if not confirm_clinical_review or not confirm_patient_identity:
         _deny("delivery_attestation_incomplete", "Clinical review and identity checks are required")
+    if communication_purpose not in COMMUNICATION_PURPOSES:
+        _deny("communication_purpose_invalid", "The communication purpose is not supported")
+    if not 5 <= acknowledgement_window_minutes <= 10_080:
+        _deny(
+            "acknowledgement_window_invalid",
+            "The acknowledgement window must be between five minutes and seven days",
+        )
+    appointment_link = None
+    if communication_purpose == "appointment_invitation":
+        appointment_link = _appointment_link(version.content)
+        if not confirm_appointment_details:
+            _deny(
+                "appointment_details_attestation_required",
+                "Appointment date, time, location, and link require explicit confirmation",
+            )
     terminology = assess_medication_terminology(version.content)
     if not terminology["release_permitted_after_confirmation"]:
         _deny(
@@ -115,6 +201,8 @@ def queue_delivery(
             existing.source_version_id != version.id
             or existing.contact_id != contact.id
             or existing.correction_for_id != expected_correction
+            or existing.approval_evidence.get("communication_purpose", "care_summary")
+            != communication_purpose
         ):
             _deny(
                 "delivery_idempotency_collision", "The idempotency key identifies another payload"
@@ -126,6 +214,14 @@ def queue_delivery(
             _deny("correction_scope_mismatch", "The original delivery belongs to another scope")
         if correction_for.status not in {"accepted", "delivered"}:
             _deny("correction_not_sent", "Only an accepted or delivered copy can be corrected")
+        original_purpose = correction_for.approval_evidence.get(
+            "communication_purpose", "care_summary"
+        )
+        if communication_purpose != original_purpose:
+            _deny(
+                "correction_purpose_mismatch",
+                "A correction must retain the original communication purpose",
+            )
         active_correction = session.scalar(
             select(OutboundDelivery).where(
                 OutboundDelivery.correction_for_id == correction_for.id,
@@ -154,11 +250,29 @@ def queue_delivery(
             "medication_and_dose": confirm_medication_and_dose,
             "dose_sensitive": terminology["dose_sensitive"],
             "terminology": terminology,
+            "communication_purpose": communication_purpose,
+            "appointment_details": confirm_appointment_details,
+            "appointment_link_hash": (
+                None if appointment_link is None else sha256(appointment_link.encode()).hexdigest()
+            ),
+            "acknowledgement_window_minutes": acknowledgement_window_minutes,
         },
         approved_by=actor.id,
     )
     session.add(delivery)
     session.flush()
+    if appointment_link is not None:
+        session.add(
+            DeliveryFollowUp(
+                clinic_id=actor.clinic_id,
+                patient_id=patient.id,
+                delivery_id=delivery.id,
+                purpose="appointment_invitation",
+                acknowledgement_window_minutes=acknowledgement_window_minutes,
+                appointment_link_hash=sha256(appointment_link.encode()).hexdigest(),
+            )
+        )
+        session.flush()
     append_audit(
         session,
         clinic_id=actor.clinic_id,
@@ -171,6 +285,8 @@ def queue_delivery(
             "source_version": entry.current_version,
             "dose_attested": confirm_medication_and_dose,
             "terminology_status": terminology["status"],
+            "communication_purpose": communication_purpose,
+            "acknowledgement_window_minutes": acknowledgement_window_minutes,
             "correction_for": delivery.correction_for_id,
         },
     )
@@ -207,7 +323,10 @@ def transition_delivery(
         _deny("delivery_failure_code_required", "A safe failure code is required")
 
     prior = delivery.status
-    timestamp = occurred_at or datetime.now(UTC)
+    timestamp = _as_utc(occurred_at or datetime.now(UTC))
+    follow_up = session.scalar(
+        select(DeliveryFollowUp).where(DeliveryFollowUp.delivery_id == delivery.id)
+    )
     delivery.status = outcome
     delivery.updated_at = timestamp
     if outcome in {"accepted", "failed"}:
@@ -216,8 +335,17 @@ def transition_delivery(
         delivery.provider_message_id = _safe_provider_id(provider_message_id or "")
         delivery.failure_code = None
         delivery.accepted_at = timestamp
+        if follow_up is not None:
+            follow_up.status = "pending_delivery"
+            follow_up.updated_at = timestamp
     elif outcome == "delivered":
         delivery.delivered_at = timestamp
+        if follow_up is not None:
+            follow_up.status = "awaiting_patient_acknowledgement"
+            follow_up.acknowledge_by = timestamp + timedelta(
+                minutes=follow_up.acknowledgement_window_minutes
+            )
+            follow_up.updated_at = timestamp
         if delivery.correction_for_id is not None:
             original = session.get(OutboundDelivery, delivery.correction_for_id)
             if original is None or original.clinic_id != actor.clinic_id:
@@ -225,10 +353,27 @@ def transition_delivery(
             original.status = "superseded"
             original.superseded_at = timestamp
             original.updated_at = timestamp
+            original_follow_up = session.scalar(
+                select(DeliveryFollowUp).where(
+                    DeliveryFollowUp.delivery_id == delivery.correction_for_id
+                )
+            )
+            if original_follow_up is not None:
+                original_follow_up.status = "superseded"
+                original_follow_up.updated_at = timestamp
+                if original_follow_up.escalation_task_id is not None:
+                    original_task = session.get(CareTask, original_follow_up.escalation_task_id)
+                    original_task.status = "completed"
     elif outcome == "failed":
         delivery.failure_code = failure_code
+        if follow_up is not None:
+            follow_up.status = "delivery_failed"
+            follow_up.updated_at = timestamp
     else:
         delivery.failure_code = None
+        if follow_up is not None:
+            follow_up.status = "pending_provider_acceptance"
+            follow_up.updated_at = timestamp
 
     append_audit(
         session,
@@ -245,6 +390,131 @@ def transition_delivery(
         },
     )
     return delivery
+
+
+def acknowledge_appointment_delivery(
+    session: Session,
+    *,
+    actor: User,
+    delivery: OutboundDelivery,
+    occurred_at: datetime | None = None,
+) -> DeliveryFollowUp:
+    """Record a patient-authenticated acknowledgement, distinct from provider delivery."""
+
+    if actor.role != "patient":
+        _deny(
+            "patient_acknowledgement_required",
+            "Only the patient can acknowledge this invitation",
+        )
+    if delivery.clinic_id != actor.clinic_id or delivery.patient_id != actor.patient_id:
+        _deny("delivery_acknowledgement_scope_mismatch", "The delivery belongs to another patient")
+    follow_up = session.scalar(
+        select(DeliveryFollowUp).where(DeliveryFollowUp.delivery_id == delivery.id)
+    )
+    if follow_up is None:
+        _deny("appointment_follow_up_missing", "This delivery is not an appointment invitation")
+    if follow_up.status in {"acknowledged", "acknowledged_after_escalation"}:
+        return follow_up
+    if delivery.status != "delivered" or follow_up.status not in {
+        "awaiting_patient_acknowledgement",
+        "escalated",
+    }:
+        _deny(
+            "appointment_acknowledgement_not_ready",
+            "The invitation cannot be acknowledged before confirmed provider delivery",
+        )
+
+    timestamp = _as_utc(occurred_at or datetime.now(UTC))
+    late = follow_up.escalated_at is not None
+    follow_up.status = "acknowledged_after_escalation" if late else "acknowledged"
+    follow_up.acknowledged_at = timestamp
+    follow_up.updated_at = timestamp
+    if follow_up.escalation_task_id is not None:
+        task = session.get(CareTask, follow_up.escalation_task_id)
+        task.status = "completed"
+    append_audit(
+        session,
+        clinic_id=actor.clinic_id,
+        actor_id=actor.id,
+        action="delivery.patient_acknowledged",
+        object_type="delivery_follow_up",
+        object_id=follow_up.id,
+        metadata={
+            "communication_purpose": follow_up.purpose,
+            "follow_up_status": follow_up.status,
+        },
+    )
+    return follow_up
+
+
+def escalate_appointment_followups(
+    session: Session,
+    *,
+    actor: User,
+    patient: Patient,
+    as_of: datetime | None = None,
+) -> list[DeliveryFollowUp]:
+    """Escalate failed or overdue appointment invitations to an owned care task."""
+
+    if actor.role not in {"staff", "clinician", "admin"}:
+        _deny("follow_up_control_required", "Only the care team can run follow-up escalation")
+    if patient.clinic_id != actor.clinic_id:
+        _deny("delivery_tenant_mismatch", "The patient belongs to another clinic")
+    timestamp = _as_utc(as_of or datetime.now(UTC))
+    owner_id = _follow_up_owner_id(session, actor)
+    candidates = list(
+        session.scalars(
+            select(DeliveryFollowUp)
+            .where(
+                DeliveryFollowUp.patient_id == patient.id,
+                DeliveryFollowUp.status.in_(
+                    ["delivery_failed", "awaiting_patient_acknowledgement"]
+                ),
+            )
+            .with_for_update(skip_locked=True)
+        )
+    )
+    escalated: list[DeliveryFollowUp] = []
+    for follow_up in candidates:
+        is_overdue = (
+            follow_up.status == "awaiting_patient_acknowledgement"
+            and follow_up.acknowledge_by is not None
+            and _as_utc(follow_up.acknowledge_by) <= timestamp
+        )
+        if follow_up.status != "delivery_failed" and not is_overdue:
+            continue
+        delivery = session.get(OutboundDelivery, follow_up.delivery_id)
+        task = CareTask(
+            clinic_id=actor.clinic_id,
+            patient_id=patient.id,
+            source_entry_id=delivery.source_entry_id,
+            title="Contact patient: appointment invitation not acknowledged",
+            status="open",
+            urgency="high",
+            assigned_to=owner_id,
+            due_at=timestamp,
+            created_by=actor.id,
+        )
+        session.add(task)
+        session.flush()
+        follow_up.status = "escalated"
+        follow_up.escalated_at = timestamp
+        follow_up.escalation_task_id = task.id
+        follow_up.updated_at = timestamp
+        append_audit(
+            session,
+            clinic_id=actor.clinic_id,
+            actor_id=actor.id,
+            action="delivery.follow_up_escalated",
+            object_type="delivery_follow_up",
+            object_id=follow_up.id,
+            metadata={
+                "communication_purpose": follow_up.purpose,
+                "follow_up_status": follow_up.status,
+            },
+        )
+        escalated.append(follow_up)
+    return escalated
 
 
 def delivery_snapshot(
@@ -267,6 +537,12 @@ def delivery_snapshot(
             .order_by(OutboundDelivery.created_at.desc())
         )
     )
+    follow_ups = {
+        item.delivery_id: item
+        for item in session.scalars(
+            select(DeliveryFollowUp).where(DeliveryFollowUp.patient_id == patient.id)
+        )
+    }
     patient_facing_entries = (
         list(
             session.scalars(
@@ -322,6 +598,7 @@ def delivery_snapshot(
         "deliveries": [
             {
                 "id": item.id,
+                "patient_id": item.patient_id,
                 "source_entry_id": item.source_entry_id,
                 "source_version_id": item.source_version_id,
                 "source_is_current": current_versions.get(item.source_entry_id)
@@ -333,6 +610,37 @@ def delivery_snapshot(
                 "content_hash": item.content_hash,
                 "status": item.status,
                 "receipt_meaning": receipt_labels[item.status],
+                "communication_purpose": item.approval_evidence.get(
+                    "communication_purpose", "care_summary"
+                ),
+                "follow_up": (
+                    None
+                    if (follow_up := follow_ups.get(item.id)) is None
+                    else {
+                        "id": follow_up.id,
+                        "purpose": follow_up.purpose,
+                        "status": follow_up.status,
+                        "acknowledgement_window_minutes": (
+                            follow_up.acknowledgement_window_minutes
+                        ),
+                        "acknowledge_by": (
+                            None
+                            if follow_up.acknowledge_by is None
+                            else follow_up.acknowledge_by.isoformat()
+                        ),
+                        "acknowledged_at": (
+                            None
+                            if follow_up.acknowledged_at is None
+                            else follow_up.acknowledged_at.isoformat()
+                        ),
+                        "escalated_at": (
+                            None
+                            if follow_up.escalated_at is None
+                            else follow_up.escalated_at.isoformat()
+                        ),
+                        "requires_patient_acknowledgement": True,
+                    }
+                ),
                 "attempt_count": item.attempt_count,
                 "created_at": item.created_at.isoformat(),
                 "accepted_at": None if item.accepted_at is None else item.accepted_at.isoformat(),
@@ -356,7 +664,8 @@ def delivery_snapshot(
         ],
         **({"terminology_assessments": terminology_assessments} if include_internal else {}),
         "safety_contract": (
-            "Provider acceptance is not patient delivery. Sent snapshots remain immutable; "
-            "corrections create a new approved message and preserve the original side by side."
+            "Provider acceptance, provider delivery, and patient acknowledgement are distinct "
+            "facts. Sent snapshots remain immutable; corrections preserve the original side by "
+            "side, and failed or overdue appointment invitations escalate to an owned care task."
         ),
     }

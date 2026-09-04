@@ -137,6 +137,7 @@ export interface DeliveryContact {
 
 export interface DeliveryItem {
   id: string;
+  patient_id: string;
   source_entry_id: string;
   source_version_id: string;
   source_is_current: boolean;
@@ -147,6 +148,17 @@ export interface DeliveryItem {
   content_hash: string;
   status: "queued" | "accepted" | "delivered" | "failed" | "superseded";
   receipt_meaning: string;
+  communication_purpose: "care_summary" | "patient_instruction" | "appointment_invitation";
+  follow_up: {
+    id: string;
+    purpose: "appointment_invitation";
+    status: "pending_provider_acceptance" | "pending_delivery" | "delivery_failed" | "awaiting_patient_acknowledgement" | "escalated" | "acknowledged" | "acknowledged_after_escalation" | "superseded";
+    acknowledgement_window_minutes: number;
+    acknowledge_by: string | null;
+    acknowledged_at: string | null;
+    escalated_at: string | null;
+    requires_patient_acknowledgement: true;
+  } | null;
   attempt_count: number;
   failure_code?: string | null;
   approved_by?: string;
@@ -211,6 +223,7 @@ export interface DeliveryReadiness {
   contacts: DeliveryContact[];
   deliveries: DeliveryItem[];
   terminology_assessments?: TerminologyAssessment[];
+  escalated_count?: number;
   safety_contract: string;
 }
 

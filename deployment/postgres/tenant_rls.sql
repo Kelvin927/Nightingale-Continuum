@@ -164,6 +164,12 @@ CREATE POLICY clinic_isolation ON outbound_deliveries
     USING (clinic_id = app_private.current_clinic_id())
     WITH CHECK (clinic_id = app_private.current_clinic_id());
 
+ALTER TABLE delivery_follow_ups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE delivery_follow_ups FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_isolation ON delivery_follow_ups
+    USING (clinic_id = app_private.current_clinic_id())
+    WITH CHECK (clinic_id = app_private.current_clinic_id());
+
 ALTER TABLE clinic_config_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clinic_config_versions FORCE ROW LEVEL SECURITY;
 CREATE POLICY clinic_isolation ON clinic_config_versions

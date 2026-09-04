@@ -56,7 +56,9 @@ from .constants import DETERMINISTIC_DISPLAY_PROPENSITY
 from .database import Database, sqlite_version
 from .delivery import (
     DeliveryPolicyError,
+    acknowledge_appointment_delivery,
     delivery_snapshot,
+    escalate_appointment_followups,
     queue_delivery,
     transition_delivery,
 )
@@ -106,6 +108,7 @@ from .schemas import (
     CreateCommentRequest,
     CreateEntryRequest,
     CreateThreadRequest,
+    DeliveryEscalationRunRequest,
     DeliveryTransitionRequest,
     EditEntryRequest,
     EvidenceReviewRequest,
@@ -892,6 +895,9 @@ def create_app(
                 confirm_clinical_review=payload.confirm_clinical_review,
                 confirm_patient_identity=payload.confirm_patient_identity,
                 confirm_medication_and_dose=payload.confirm_medication_and_dose,
+                communication_purpose=payload.communication_purpose,
+                confirm_appointment_details=payload.confirm_appointment_details,
+                acknowledgement_window_minutes=payload.acknowledgement_window_minutes,
             )
         except DeliveryPolicyError as exc:
             session.rollback()
@@ -926,6 +932,54 @@ def create_app(
         session.commit()
         return delivery_snapshot(session, patient)
 
+    @app.post(f"{API_PREFIX}/deliveries/{{delivery_id}}/acknowledge")
+    def acknowledge_delivery(
+        delivery_id: str,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        if actor.role != "patient":
+            raise forbidden("patient_acknowledgement_required")
+        delivery = session.get(OutboundDelivery, delivery_id)
+        if delivery is None:
+            raise conceal()
+        patient = require_patient(session, actor, delivery.patient_id)
+        try:
+            acknowledge_appointment_delivery(
+                session,
+                actor=actor,
+                delivery=delivery,
+            )
+        except DeliveryPolicyError as exc:
+            session.rollback()
+            raise _delivery_error(exc) from exc
+        session.commit()
+        return delivery_snapshot(session, patient, include_internal=False)
+
+    @app.post(f"{API_PREFIX}/patients/{{patient_id}}/delivery-follow-ups/escalate")
+    def escalate_delivery_followups(
+        patient_id: str,
+        payload: DeliveryEscalationRunRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        require_internal_collaboration(actor)
+        patient = require_patient(session, actor, patient_id)
+        as_of = payload.as_of or datetime.now(UTC)
+        if as_of.tzinfo is None:
+            as_of = as_of.replace(tzinfo=UTC)
+        escalated = escalate_appointment_followups(
+            session,
+            actor=actor,
+            patient=patient,
+            as_of=as_of,
+        )
+        session.commit()
+        return {
+            **delivery_snapshot(session, patient),
+            "escalated_count": len(escalated),
+        }
+
     @app.post(f"{API_PREFIX}/deliveries/{{delivery_id}}/corrections", status_code=201)
     def create_delivery_correction(
         delivery_id: str,
@@ -952,6 +1006,9 @@ def create_app(
                 confirm_clinical_review=payload.confirm_clinical_review,
                 confirm_patient_identity=payload.confirm_patient_identity,
                 confirm_medication_and_dose=payload.confirm_medication_and_dose,
+                communication_purpose=payload.communication_purpose,
+                confirm_appointment_details=payload.confirm_appointment_details,
+                acknowledgement_window_minutes=payload.acknowledgement_window_minutes,
                 correction_for=original,
             )
         except DeliveryPolicyError as exc:

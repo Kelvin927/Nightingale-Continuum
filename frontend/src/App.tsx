@@ -141,6 +141,7 @@ export default function App() {
   } | null>(null);
   const [regenerationEntry, setRegenerationEntry] = useState<Entry | null>(null);
   const [patientAccessOpen, setPatientAccessOpen] = useState(false);
+  const toastTimeout = useRef<number | null>(null);
 
   const selectedIdentity = identities.find((item) => item.id === userId) ?? null;
   const currentPatient = workspace?.patient ?? patients.find((patient) => patient.id === patientId) ?? null;
@@ -177,7 +178,15 @@ export default function App() {
 
   const announce = useCallback((message: string) => {
     setToast(message);
-    window.setTimeout(() => setToast(null), 3200);
+    if (toastTimeout.current !== null) window.clearTimeout(toastTimeout.current);
+    toastTimeout.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimeout.current = null;
+    }, 3200);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimeout.current !== null) window.clearTimeout(toastTimeout.current);
   }, []);
 
   const loadWorkspace = useCallback(async (activeUser: string, activePatient: string, activeRole: Role) => {
@@ -625,7 +634,13 @@ export default function App() {
   async function queuePatientDelivery(
     entry: Entry,
     contactId: string,
-    attestations: { clinical: boolean; identity: boolean; medication: boolean },
+    purpose: DeliveryItem["communication_purpose"],
+    attestations: {
+      clinical: boolean;
+      identity: boolean;
+      medication: boolean;
+      appointment: boolean;
+    },
   ) {
     const active = actionContext.current;
     if (active.role !== "clinician" || !active.patientId || entry.patient_id !== active.patientId) return;
@@ -638,6 +653,9 @@ export default function App() {
         confirm_clinical_review: attestations.clinical,
         confirm_patient_identity: attestations.identity,
         confirm_medication_and_dose: attestations.medication,
+        communication_purpose: purpose,
+        confirm_appointment_details: attestations.appointment,
+        acknowledgement_window_minutes: 1_440,
       });
       setDelivery(next);
       announce("Approved copy queued. Provider acceptance is still unconfirmed.");
@@ -652,7 +670,12 @@ export default function App() {
     original: DeliveryItem,
     entry: Entry,
     contactId: string,
-    attestations: { clinical: boolean; identity: boolean; medication: boolean },
+    attestations: {
+      clinical: boolean;
+      identity: boolean;
+      medication: boolean;
+      appointment: boolean;
+    },
   ) {
     const active = actionContext.current;
     if (active.role !== "clinician" || !active.patientId || entry.patient_id !== active.patientId) return;
@@ -666,6 +689,9 @@ export default function App() {
         confirm_clinical_review: attestations.clinical,
         confirm_patient_identity: attestations.identity,
         confirm_medication_and_dose: attestations.medication,
+        communication_purpose: original.communication_purpose,
+        confirm_appointment_details: attestations.appointment,
+        acknowledgement_window_minutes: original.follow_up?.acknowledgement_window_minutes ?? 1_440,
       });
       setDelivery(next);
       announce("Correction queued as a new immutable, clinician-approved copy.");
@@ -694,6 +720,42 @@ export default function App() {
       announce(outcome === "accepted"
         ? "Provider acceptance recorded; patient delivery remains unconfirmed."
         : "Synthetic patient delivery receipt recorded.");
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setDeliveryBusy(false);
+    }
+  }
+
+  async function acknowledgeAppointmentDelivery(item: DeliveryItem) {
+    const active = actionContext.current;
+    if (
+      active.role !== "patient"
+      || !active.patientId
+      || item.patient_id !== active.patientId
+    ) return;
+    setDeliveryBusy(true);
+    try {
+      const next = await api.acknowledgeDelivery(active.userId, item.id);
+      setDelivery(next);
+      announce("Appointment invitation acknowledged by the authenticated patient.");
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setDeliveryBusy(false);
+    }
+  }
+
+  async function sweepAppointmentFollowUps() {
+    const active = actionContext.current;
+    if (active.role === "patient" || !active.patientId) return;
+    setDeliveryBusy(true);
+    try {
+      const next = await api.escalateDeliveryFollowUps(active.userId, active.patientId);
+      setDelivery(next);
+      announce(next.escalated_count
+        ? `${next.escalated_count} appointment follow-up escalated to the care team.`
+        : "No failed or overdue appointment invitations require escalation.");
     } catch (reason) {
       setError(friendlyError(reason));
     } finally {
@@ -806,6 +868,8 @@ export default function App() {
                 onQueue={queuePatientDelivery}
                 onCorrect={queuePatientCorrection}
                 onTransition={recordSyntheticReceipt}
+                onAcknowledge={acknowledgeAppointmentDelivery}
+                onSweep={sweepAppointmentFollowUps}
               />
             )}
 

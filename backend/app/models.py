@@ -396,6 +396,34 @@ class OutboundDelivery(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class DeliveryFollowUp(Base):
+    __tablename__ = "delivery_follow_ups"
+    __table_args__ = (
+        UniqueConstraint("delivery_id", name="uq_delivery_follow_up_delivery"),
+        Index("ix_delivery_follow_ups_patient_status", "patient_id", "status"),
+        Index("ix_delivery_follow_ups_due", "status", "acknowledge_by"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    delivery_id: Mapped[str] = mapped_column(ForeignKey("outbound_deliveries.id"), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="pending_provider_acceptance"
+    )
+    acknowledgement_window_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    appointment_link_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    acknowledge_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalation_task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("care_tasks.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class ClinicConfigVersion(Base):
     __tablename__ = "clinic_config_versions"
     __table_args__ = (

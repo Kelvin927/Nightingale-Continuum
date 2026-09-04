@@ -29,6 +29,8 @@ vi.mock("./api", () => {
       queueDelivery: vi.fn(),
       queueCorrection: vi.fn(),
       transitionDelivery: vi.fn(),
+      acknowledgeDelivery: vi.fn(),
+      escalateDeliveryFollowUps: vi.fn(),
       resolveConflict: vi.fn(),
       provenance: vi.fn(),
       feedback: vi.fn(),
@@ -164,6 +166,7 @@ const streamingCapture: StreamingCapture = {
 
 const staleDelivery: DeliveryItem = {
   id: "delivery-stale",
+  patient_id: patient.id,
   source_entry_id: patientInstruction.id,
   source_version_id: "version-sent-1",
   source_is_current: false,
@@ -174,6 +177,8 @@ const staleDelivery: DeliveryItem = {
   content_hash: "c".repeat(64),
   status: "delivered",
   receipt_meaning: "Provider delivery receipt recorded.",
+  communication_purpose: "care_summary",
+  follow_up: null,
   attempt_count: 1,
   created_at: "2026-09-05T09:00:00Z",
   accepted_at: "2026-09-05T09:01:00Z",
@@ -239,6 +244,8 @@ function configureSuccessApi() {
   mockedApi.queueDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
   mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.acknowledgeDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.escalateDeliveryFollowUps.mockResolvedValue(deliveryReadiness);
   mockedApi.resolveConflict.mockImplementation(async (_userId, _conflictId, decision, rationale) => ({
     ...workspace.conflicts[0],
     status: decision === "escalate_unresolved" ? "escalated" : "resolved",
@@ -454,6 +461,9 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
       confirm_clinical_review: true,
       confirm_patient_identity: true,
       confirm_medication_and_dose: true,
+      communication_purpose: "care_summary",
+      confirm_appointment_details: false,
+      acknowledgement_window_minutes: 1_440,
     }),
   ));
 
@@ -579,6 +589,9 @@ test("a clinician can queue an immutable correction and correction failures stay
       confirm_clinical_review: true,
       confirm_patient_identity: true,
       confirm_medication_and_dose: true,
+      communication_purpose: "care_summary",
+      confirm_appointment_details: false,
+      acknowledgement_window_minutes: 1_440,
     }),
   ));
   expect(await screen.findByRole("status")).toHaveTextContent("Correction queued");
@@ -623,6 +636,70 @@ test("admin receipt simulation separates acceptance, delivery, and provider fail
   mockedApi.transitionDelivery.mockRejectedValueOnce(new Error("Provider receipt unavailable"));
   fireEvent.click(screen.getByRole("button", { name: /record synthetic provider acceptance/i }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Provider receipt unavailable");
+
+  fireEvent.click(screen.getByRole("button", { name: /check failed or overdue/i }));
+  await waitFor(() => expect(mockedApi.escalateDeliveryFollowUps).toHaveBeenCalledWith(
+    "user-admin",
+    patient.id,
+  ));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "No failed or overdue appointment invitations require escalation",
+  );
+  mockedApi.escalateDeliveryFollowUps.mockResolvedValueOnce({
+    ...readiness,
+    escalated_count: 2,
+  });
+  fireEvent.click(screen.getByRole("button", { name: /check failed or overdue/i }));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "2 appointment follow-up escalated to the care team",
+  );
+  mockedApi.escalateDeliveryFollowUps.mockRejectedValueOnce(new Error("Sweep unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: /check failed or overdue/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Sweep unavailable");
+});
+
+test("the authenticated patient can acknowledge a delivered appointment invitation", async () => {
+  const deliveredAppointment: DeliveryItem = {
+    ...staleDelivery,
+    id: "delivery-appointment",
+    source_is_current: true,
+    communication_purpose: "appointment_invitation",
+    follow_up: {
+      id: "follow-up-appointment",
+      purpose: "appointment_invitation",
+      status: "awaiting_patient_acknowledgement",
+      acknowledgement_window_minutes: 1_440,
+      acknowledge_by: "2026-09-06T09:02:00Z",
+      acknowledged_at: null,
+      escalated_at: null,
+      requires_patient_acknowledgement: true,
+    },
+  };
+  mockedApi.deliveryReadiness.mockResolvedValue({
+    ...deliveryReadiness,
+    deliveries: [deliveredAppointment],
+  });
+  mockedApi.acknowledgeDelivery.mockResolvedValueOnce({
+    ...deliveryReadiness,
+    deliveries: [deliveredAppointment],
+  });
+  await renderFor("user-patient");
+  fireEvent.click(screen.getByRole("button", {
+    name: /i received this appointment invitation/i,
+  }));
+  await waitFor(() => expect(mockedApi.acknowledgeDelivery).toHaveBeenCalledWith(
+    "user-patient",
+    deliveredAppointment.id,
+  ));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Appointment invitation acknowledged by the authenticated patient",
+  );
+
+  mockedApi.acknowledgeDelivery.mockRejectedValueOnce(new Error("Acknowledgement unavailable"));
+  fireEvent.click(screen.getByRole("button", {
+    name: /i received this appointment invitation/i,
+  }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Acknowledgement unavailable");
 });
 
 test("concurrent edits become a three-way reviewed draft before a fresh save", async () => {

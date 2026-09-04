@@ -97,6 +97,8 @@ test("medication delivery gate has no axe-detectable accessibility violations", 
       onQueue={vi.fn()}
       onCorrect={vi.fn()}
       onTransition={vi.fn()}
+      onAcknowledge={vi.fn()}
+      onSweep={vi.fn()}
     />,
   );
   const results = await axe(view.container, noColorContrast);

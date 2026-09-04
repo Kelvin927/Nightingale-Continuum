@@ -68,6 +68,12 @@ test("clinician sees version-bound medication evidence before patient delivery",
   );
   await dialog.getByRole("button", { name: "Save version" }).click();
 
+  const source = page.getByLabel("Patient-facing source");
+  const summaryOption = source.locator("option").filter({ hasText: "Your visit summary" });
+  const summaryEntryId = await summaryOption.getAttribute("value");
+  expect(summaryEntryId).not.toBeNull();
+  await source.selectOption(summaryEntryId!);
+
   const gate = page.getByRole("group", { name: "Medication terminology release gate" });
   await expect(gate.getByText("Structured medication evidence ready")).toBeVisible();
   await expect(gate.getByText("10 mg", { exact: true })).toBeVisible();
@@ -81,6 +87,45 @@ test("clinician sees version-bound medication evidence before patient delivery",
   await expect(page.getByRole("button", { name: /queue approved copy/i })).toBeDisabled();
   await page.getByLabel(/verified every medication and dose/i).check();
   await expect(page.getByRole("button", { name: /queue approved copy/i })).toBeEnabled();
+});
+
+test("appointment delivery closes only after provider receipt and patient acknowledgement", async ({ page }) => {
+  await page.goto("/");
+
+  const appointmentCard = page.locator('article[aria-label^="Your follow-up appointment,"]');
+  await appointmentCard.getByRole("button", { name: "Edit section" }).click();
+  const editDialog = page.getByRole("dialog");
+  const appointmentCopy = editDialog.getByLabel("Note content");
+  await appointmentCopy.fill(
+    `${await appointmentCopy.inputValue()}\nReviewed for this synthetic closed-loop rehearsal.`,
+  );
+  await editDialog.getByRole("button", { name: "Save version" }).click();
+
+  const source = page.getByLabel("Patient-facing source");
+  const appointmentOption = source.locator("option").filter({
+    hasText: "Your follow-up appointment",
+  });
+  const appointmentEntryId = await appointmentOption.getAttribute("value");
+  expect(appointmentEntryId).not.toBeNull();
+  await source.selectOption(appointmentEntryId!);
+  await page.getByLabel("Communication purpose").selectOption("appointment_invitation");
+  await page.getByLabel(/reviewed the exact patient-facing copy/i).check();
+  await page.getByLabel(/verified the patient and contact route/i).check();
+  await page.getByLabel(/verified the appointment date, time, location, and exact link/i).check();
+  await page.getByRole("button", { name: /queue approved copy/i }).click();
+  await expect(page.getByText("pending provider acceptance", { exact: true }).first()).toBeVisible();
+
+  await page.locator(".role-trigger").click();
+  await page.getByRole("button", { name: /Rose Tan admin/i }).click();
+  await page.getByRole("button", { name: /record synthetic provider acceptance/i }).first().click();
+  await expect(page.getByText("pending delivery", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: /record synthetic delivery receipt/i }).first().click();
+  await expect(page.getByText("awaiting patient acknowledgement", { exact: true }).first()).toBeVisible();
+
+  await page.locator(".role-trigger").click();
+  await page.getByRole("button", { name: /Maya Chen patient/i }).click();
+  await page.getByRole("button", { name: /i received this appointment invitation/i }).first().click();
+  await expect(page.getByText("acknowledged", { exact: true }).first()).toBeVisible();
 });
 
 test("mobile layout preserves the glance and role navigation @mobile", async ({ page }) => {

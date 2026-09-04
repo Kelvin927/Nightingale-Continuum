@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -150,6 +152,12 @@ class QueueDeliveryRequest(BaseModel):
     confirm_clinical_review: bool
     confirm_patient_identity: bool
     confirm_medication_and_dose: bool = False
+    communication_purpose: str = Field(
+        default="care_summary",
+        pattern="^(care_summary|patient_instruction|appointment_invitation)$",
+    )
+    confirm_appointment_details: bool = False
+    acknowledgement_window_minutes: int = Field(default=1_440, ge=5, le=10_080)
 
 
 class DeliveryTransitionRequest(BaseModel):
@@ -160,6 +168,12 @@ class DeliveryTransitionRequest(BaseModel):
 
 class QueueCorrectionRequest(QueueDeliveryRequest):
     replacement_entry_id: str = Field(min_length=3, max_length=64)
+
+
+class DeliveryEscalationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    as_of: datetime | None = None
 
 
 class IssuePatientAccessClaimRequest(BaseModel):

@@ -30,9 +30,11 @@ const captures = vi.hoisted(() => ({
   streamFinalize: null as null | ((captureId: string) => Promise<StreamingCapture>),
   feedback: null as null | ((highlightId: string, action: "accept" | "reject" | "pin") => Promise<void>),
   retention: null as null | (() => Promise<void>),
-  deliveryQueue: null as null | ((entry: Entry, contactId: string, attestations: { clinical: boolean; identity: boolean; medication: boolean }) => Promise<void>),
-  deliveryCorrect: null as null | ((original: DeliveryItem, entry: Entry, contactId: string, attestations: { clinical: boolean; identity: boolean; medication: boolean }) => Promise<void>),
+  deliveryQueue: null as null | ((entry: Entry, contactId: string, purpose: DeliveryItem["communication_purpose"], attestations: { clinical: boolean; identity: boolean; medication: boolean; appointment: boolean }) => Promise<void>),
+  deliveryCorrect: null as null | ((original: DeliveryItem, entry: Entry, contactId: string, attestations: { clinical: boolean; identity: boolean; medication: boolean; appointment: boolean }) => Promise<void>),
   deliveryTransition: null as null | ((item: DeliveryItem, outcome: "queued" | "accepted" | "delivered" | "failed") => Promise<void>),
+  deliveryAcknowledge: null as null | ((item: DeliveryItem) => Promise<void>),
+  deliverySweep: null as null | (() => Promise<void>),
   conflictResolve: null as null | ((decision: "confirm_left" | "confirm_right" | "escalate_unresolved", rationale: string, sourcesReviewed: boolean) => Promise<void>),
   mergeUse: null as null | ((content: string) => void),
   regenerate: null as null | ((transcript: string) => Promise<RegenerationResult>),
@@ -101,10 +103,14 @@ vi.mock("./components/DeliveryCenter", () => ({
     onQueue: NonNullable<typeof captures.deliveryQueue>;
     onCorrect: NonNullable<typeof captures.deliveryCorrect>;
     onTransition: NonNullable<typeof captures.deliveryTransition>;
+    onAcknowledge: NonNullable<typeof captures.deliveryAcknowledge>;
+    onSweep: NonNullable<typeof captures.deliverySweep>;
   }) => {
     captures.deliveryQueue = props.onQueue;
     captures.deliveryCorrect = props.onCorrect;
     captures.deliveryTransition = props.onTransition;
+    captures.deliveryAcknowledge = props.onAcknowledge;
+    captures.deliverySweep = props.onSweep;
     return <div data-testid="delivery-center">Scoped delivery center</div>;
   },
 }));
@@ -177,6 +183,8 @@ vi.mock("./api", () => ({
     queueDelivery: vi.fn(),
     queueCorrection: vi.fn(),
     transitionDelivery: vi.fn(),
+    acknowledgeDelivery: vi.fn(),
+    escalateDeliveryFollowUps: vi.fn(),
     provenance: vi.fn(),
     feedback: vi.fn(),
     createEntry: vi.fn(),
@@ -264,6 +272,8 @@ beforeEach(() => {
     deliveryQueue: null,
     deliveryCorrect: null,
     deliveryTransition: null,
+    deliveryAcknowledge: null,
+    deliverySweep: null,
     conflictResolve: null,
     mergeUse: null,
     regenerate: null,
@@ -290,6 +300,8 @@ beforeEach(() => {
   mockedApi.queueDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
   mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.acknowledgeDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.escalateDeliveryFollowUps.mockResolvedValue(deliveryReadiness);
   mockedApi.issuePatientAccess.mockResolvedValue({
     claim_id: "claim-1",
     patient_id: patient.id,
@@ -515,6 +527,7 @@ test("advanced stale callbacks re-check live identity, role, patient, and confli
 
   const deliveryItem: DeliveryItem = {
     id: "delivery-1",
+    patient_id: patient.id,
     source_entry_id: workspace.entries[3].id,
     source_version_id: workspace.entries[3].version.id,
     source_is_current: true,
@@ -525,23 +538,29 @@ test("advanced stale callbacks re-check live identity, role, patient, and confli
     content_hash: "b".repeat(64),
     status: "queued",
     receipt_meaning: "Queued only",
+    communication_purpose: "care_summary",
+    follow_up: null,
     attempt_count: 0,
     created_at: "2026-09-05T10:00:00Z",
     accepted_at: null,
     delivered_at: null,
     superseded_at: null,
   };
-  const attestations = { clinical: true, identity: true, medication: true };
+  const attestations = { clinical: true, identity: true, medication: true, appointment: false };
   const writeCounts = {
     queue: mockedApi.queueDelivery.mock.calls.length,
     correction: mockedApi.queueCorrection.mock.calls.length,
     transition: mockedApi.transitionDelivery.mock.calls.length,
+    acknowledge: mockedApi.acknowledgeDelivery.mock.calls.length,
+    sweep: mockedApi.escalateDeliveryFollowUps.mock.calls.length,
     conflict: mockedApi.resolveConflict.mock.calls.length,
   };
   await act(async () => {
-    await captures.deliveryQueue?.(workspace.entries[3], "contact-whatsapp", attestations);
+    await captures.deliveryQueue?.(workspace.entries[3], "contact-whatsapp", "care_summary", attestations);
     await captures.deliveryCorrect?.(deliveryItem, workspace.entries[3], "contact-whatsapp", attestations);
     await captures.deliveryTransition?.(deliveryItem, "accepted");
+    await captures.deliveryAcknowledge?.(deliveryItem);
+    await captures.deliverySweep?.();
     await captures.conflictResolve?.("confirm_left", "stale decision", true);
     await expect(captures.streamRun?.("doctor_consult")).rejects.toThrow(
       "No active patient capture context.",
@@ -566,6 +585,8 @@ test("advanced stale callbacks re-check live identity, role, patient, and confli
   expect(mockedApi.queueDelivery).toHaveBeenCalledTimes(writeCounts.queue);
   expect(mockedApi.queueCorrection).toHaveBeenCalledTimes(writeCounts.correction);
   expect(mockedApi.transitionDelivery).toHaveBeenCalledTimes(writeCounts.transition);
+  expect(mockedApi.acknowledgeDelivery).toHaveBeenCalledTimes(writeCounts.acknowledge);
+  expect(mockedApi.escalateDeliveryFollowUps).toHaveBeenCalledTimes(writeCounts.sweep);
   expect(mockedApi.resolveConflict).toHaveBeenCalledTimes(writeCounts.conflict);
   expect(mockedApi.reviewSafetySignal).toHaveBeenNthCalledWith(
     1,

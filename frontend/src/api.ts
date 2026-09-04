@@ -3,6 +3,7 @@ import type {
   AuditVerification,
   ConflictItem,
   DeltaLens,
+  DeliveryItem,
   DeliveryReadiness,
   EvidenceReview,
   Glance,
@@ -127,6 +128,9 @@ export const api = {
       confirm_clinical_review: boolean;
       confirm_patient_identity: boolean;
       confirm_medication_and_dose: boolean;
+      communication_purpose: DeliveryItem["communication_purpose"];
+      confirm_appointment_details: boolean;
+      acknowledgement_window_minutes: number;
     },
   ) =>
     request<DeliveryReadiness>(`/api/v1/entries/${entryId}/deliveries`, userId, {
@@ -144,6 +148,9 @@ export const api = {
       confirm_clinical_review: boolean;
       confirm_patient_identity: boolean;
       confirm_medication_and_dose: boolean;
+      communication_purpose: DeliveryItem["communication_purpose"];
+      confirm_appointment_details: boolean;
+      acknowledgement_window_minutes: number;
     },
   ) =>
     request<DeliveryReadiness>(
@@ -164,6 +171,18 @@ export const api = {
       `/api/v1/deliveries/${deliveryId}/transition`,
       userId,
       { method: "POST", body: JSON.stringify(payload) },
+    ),
+  acknowledgeDelivery: (userId: string, deliveryId: string) =>
+    request<DeliveryReadiness>(
+      `/api/v1/deliveries/${deliveryId}/acknowledge`,
+      userId,
+      { method: "POST" },
+    ),
+  escalateDeliveryFollowUps: (userId: string, patientId: string) =>
+    request<DeliveryReadiness>(
+      `/api/v1/patients/${patientId}/delivery-follow-ups/escalate`,
+      userId,
+      { method: "POST", body: JSON.stringify({}) },
     ),
   provenance: (userId: string, spanId: string) =>
     request<ResolvedProvenance>(`/api/v1/provenance/${spanId}/resolve`, userId),

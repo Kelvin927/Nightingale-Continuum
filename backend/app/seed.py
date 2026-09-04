@@ -296,6 +296,23 @@ def seed_database(session: Session) -> None:
         trust_state="clinician_confirmed",
         created_at=_dt("2026-02-06T10:18:00"),
     )
+    create_entry(
+        session,
+        actor=users["clinician"],
+        clinic_id=northstar.id,
+        patient_id=maya.id,
+        owner_role="clinician",
+        entry_type="patient_instruction",
+        title="Your follow-up appointment",
+        content=(
+            "Your synthetic follow-up is booked for 10 September 2026 at 09:30 SGT. "
+            "Open https://appointments.example.test/synthetic/follow-up-2048 to review the "
+            "details, then confirm receipt in this portal."
+        ),
+        visibility="patient",
+        trust_state="clinician_confirmed",
+        created_at=_dt("2026-02-06T10:19:00"),
+    )
 
     create_entry(
         session,

@@ -80,6 +80,9 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     confirm_clinical_review: true,
     confirm_patient_identity: true,
     confirm_medication_and_dose: true,
+    communication_purpose: "patient_instruction",
+    confirm_appointment_details: false,
+    acknowledgement_window_minutes: 1_440,
   });
   await api.queueCorrection("user-1", "delivery-1", {
     replacement_entry_id: "entry-1",
@@ -89,11 +92,16 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     confirm_clinical_review: true,
     confirm_patient_identity: true,
     confirm_medication_and_dose: true,
+    communication_purpose: "patient_instruction",
+    confirm_appointment_details: false,
+    acknowledgement_window_minutes: 1_440,
   });
   await api.transitionDelivery("user-1", "delivery-1", {
     outcome: "accepted",
     provider_message_id: "provider-1",
   });
+  await api.acknowledgeDelivery("user-1", "delivery-1");
+  await api.escalateDeliveryFollowUps("user-1", "patient-1");
   await api.startCapture("user-1", "patient-1", "doctor_consult");
   await api.appendCaptureSegment("user-1", "capture-1", {
     chunk_id: "chunk-1",
@@ -131,7 +139,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   );
 
   const calls = vi.mocked(fetch).mock.calls;
-  expect(calls).toHaveLength(34);
+  expect(calls).toHaveLength(36);
   expect(calls.map(([path]) => path)).toEqual([
     "/api/v1/demo/identities",
     "/api/v1/me",
@@ -160,6 +168,8 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "/api/v1/entries/entry-1/deliveries",
     "/api/v1/deliveries/delivery-1/corrections",
     "/api/v1/deliveries/delivery-1/transition",
+    "/api/v1/deliveries/delivery-1/acknowledge",
+    "/api/v1/patients/patient-1/delivery-follow-ups/escalate",
     "/api/v1/patients/patient-1/captures",
     "/api/v1/captures/capture-1/segments",
     "/api/v1/captures/capture-1/finalize",
@@ -196,20 +206,26 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   expect((calls[22][1]?.headers as Headers).get("X-Patient-Device")).toBe("device-1");
   expect((calls[22][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
   expect((calls[23][1]?.headers as Headers).get("X-Patient-Session")).toBe("session-secret");
-  expect(calls[24][1]).toMatchObject({ method: "POST" });
+  expect(calls[24][1]).toMatchObject({
+    method: "POST",
+    body: expect.stringContaining('"communication_purpose":"patient_instruction"'),
+  });
   expect(calls[25][1]?.body).toContain('"replacement_entry_id":"entry-1"');
+  expect(calls[25][1]?.body).toContain('"confirm_appointment_details":false');
   expect(calls[26][1]?.body).toBe(JSON.stringify({
     outcome: "accepted",
     provider_message_id: "provider-1",
   }));
-  expect(calls[27][1]?.body).toBe(JSON.stringify({ interaction_type: "doctor_consult" }));
-  expect(calls[28][1]?.body).toContain('"chunk_id":"chunk-1"');
-  expect(calls[29][1]).toMatchObject({ method: "POST" });
-  expect(calls[30][1]?.body).toBe(JSON.stringify({
+  expect(calls[27][1]).toMatchObject({ method: "POST" });
+  expect(calls[28][1]).toMatchObject({ method: "POST", body: JSON.stringify({}) });
+  expect(calls[29][1]?.body).toBe(JSON.stringify({ interaction_type: "doctor_consult" }));
+  expect(calls[30][1]?.body).toContain('"chunk_id":"chunk-1"');
+  expect(calls[31][1]).toMatchObject({ method: "POST" });
+  expect(calls[32][1]?.body).toBe(JSON.stringify({
     decision: "confirm",
     rationale: "Confirmed with patient.",
   }));
-  expect(calls[32][1]).toMatchObject({
+  expect(calls[34][1]).toMatchObject({
     method: "POST",
     body: JSON.stringify({
       expected_version: 1,
@@ -217,7 +233,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
       source_uri: "regeneration://synthetic/entry-ai/v1",
     }),
   });
-  expect(calls[33][1]).toMatchObject({
+  expect(calls[35][1]).toMatchObject({
     method: "POST",
     body: JSON.stringify({
       decision: "escalate_unresolved",

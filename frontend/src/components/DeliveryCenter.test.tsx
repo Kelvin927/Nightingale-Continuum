@@ -6,6 +6,7 @@ import { DeliveryCenter } from "./DeliveryCenter";
 
 const delivered: DeliveryItem = {
   id: "delivery-original",
+  patient_id: patientInstruction.patient_id,
   source_entry_id: patientInstruction.id,
   source_version_id: "version-old",
   source_is_current: false,
@@ -16,6 +17,8 @@ const delivered: DeliveryItem = {
   content_hash: "c".repeat(64),
   status: "delivered",
   receipt_meaning: "Provider delivery receipt recorded",
+  communication_purpose: "care_summary",
+  follow_up: null,
   attempt_count: 1,
   created_at: "2026-09-05T00:00:00Z",
   accepted_at: "2026-09-05T00:01:00Z",
@@ -34,6 +37,17 @@ const plainEntry: Entry = {
   },
 };
 
+const appointmentEntry: Entry = {
+  ...plainEntry,
+  id: "entry-appointment",
+  title: "Your follow-up appointment",
+  version: {
+    ...plainEntry.version,
+    id: "version-appointment",
+    content: "Your appointment is 10 September 2026 at 09:30 SGT. Open https://appointments.example.test/synthetic/follow-up-2048.",
+  },
+};
+
 const structuredAssessment = deliveryReadiness.terminology_assessments?.[0] as TerminologyAssessment;
 const plainAssessment: TerminologyAssessment = {
   ...structuredAssessment,
@@ -46,6 +60,11 @@ const plainAssessment: TerminologyAssessment = {
   medication_mentions: [],
   dose_mentions: [],
 };
+const appointmentAssessment: TerminologyAssessment = {
+  ...plainAssessment,
+  entry_id: appointmentEntry.id,
+  source_version_id: appointmentEntry.version.id,
+};
 
 function props() {
   return {
@@ -56,6 +75,8 @@ function props() {
     onQueue: vi.fn().mockResolvedValue(undefined),
     onCorrect: vi.fn().mockResolvedValue(undefined),
     onTransition: vi.fn().mockResolvedValue(undefined),
+    onAcknowledge: vi.fn().mockResolvedValue(undefined),
+    onSweep: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -80,7 +101,8 @@ test("clinician queue requires exact-copy, identity, and dose attestations", () 
   expect(values.onQueue).toHaveBeenCalledWith(
     patientInstruction,
     "contact-whatsapp",
-    { clinical: true, identity: true, medication: true },
+    "care_summary",
+    { clinical: true, identity: true, medication: true, appointment: false },
   );
 });
 
@@ -105,7 +127,7 @@ test("stale delivered copy remains visible and supports an explicit correction",
     delivered,
     patientInstruction,
     "contact-whatsapp",
-    { clinical: true, identity: true, medication: true },
+    { clinical: true, identity: true, medication: true, appointment: false },
   );
 });
 
@@ -140,6 +162,140 @@ test("patient view hides approval controls and admin simulator advances one rece
   );
   fireEvent.click(screen.getByRole("button", { name: /record synthetic delivery receipt/i }));
   expect(adminView.onTransition).toHaveBeenCalledWith(accepted, "delivered");
+  fireEvent.click(screen.getByRole("button", { name: /check failed or overdue/i }));
+  expect(adminView.onSweep).toHaveBeenCalledTimes(1);
+});
+
+test("appointment purpose requires a separate detail attestation and queues an acknowledgement contract", () => {
+  const values = props();
+  render(
+    <DeliveryCenter
+      {...values}
+      patientFacingEntries={[appointmentEntry]}
+      readiness={{ ...deliveryReadiness, terminology_assessments: [appointmentAssessment] }}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("Communication purpose"), {
+    target: { value: "appointment_invitation" },
+  });
+  expect(screen.getByText(/acknowledgement required/i)).toBeVisible();
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  const queue = screen.getByRole("button", { name: /queue approved copy/i });
+  expect(queue).toBeDisabled();
+  fireEvent.click(screen.getByLabelText(/verified the appointment date, time, location, and exact link/i));
+  expect(queue).toBeEnabled();
+  fireEvent.click(queue);
+  expect(values.onQueue).toHaveBeenCalledWith(
+    appointmentEntry,
+    "contact-whatsapp",
+    "appointment_invitation",
+    { clinical: true, identity: true, medication: false, appointment: true },
+  );
+
+  fireEvent.change(screen.getByLabelText("Communication purpose"), {
+    target: { value: "patient_instruction" },
+  });
+  expect(screen.queryByLabelText(/verified the appointment date/i)).toBeNull();
+});
+
+test("appointment ledger separates pending, overdue escalation, and patient acknowledgement", () => {
+  const awaiting: DeliveryItem = {
+    ...delivered,
+    id: "delivery-awaiting-appointment",
+    communication_purpose: "appointment_invitation",
+    follow_up: {
+      id: "follow-up-awaiting",
+      purpose: "appointment_invitation",
+      status: "awaiting_patient_acknowledgement",
+      acknowledgement_window_minutes: 1_440,
+      acknowledge_by: "2026-09-06T09:02:00Z",
+      acknowledged_at: null,
+      escalated_at: null,
+      requires_patient_acknowledgement: true,
+    },
+  };
+  const escalated: DeliveryItem = {
+    ...awaiting,
+    id: "delivery-escalated-appointment",
+    follow_up: {
+      ...awaiting.follow_up!,
+      id: "follow-up-escalated",
+      status: "escalated",
+      escalated_at: "2026-09-06T09:03:00Z",
+    },
+  };
+  const acknowledged: DeliveryItem = {
+    ...awaiting,
+    id: "delivery-acknowledged-appointment",
+    follow_up: {
+      ...awaiting.follow_up!,
+      id: "follow-up-acknowledged",
+      status: "acknowledged_after_escalation",
+      acknowledged_at: "2026-09-06T10:00:00Z",
+      escalated_at: "2026-09-06T09:03:00Z",
+    },
+  };
+  const pendingProvider: DeliveryItem = {
+    ...awaiting,
+    id: "delivery-pending-provider",
+    status: "queued",
+    follow_up: {
+      ...awaiting.follow_up!,
+      id: "follow-up-pending-provider",
+      status: "pending_provider_acceptance",
+      acknowledge_by: null,
+    },
+  };
+  const values = props();
+  render(
+    <DeliveryCenter
+      {...values}
+      role="patient"
+      readiness={{
+        ...deliveryReadiness,
+        deliveries: [awaiting, escalated, acknowledged, pendingProvider],
+      }}
+    />,
+  );
+  expect(screen.getAllByText(/patient acknowledgement due/i)).toHaveLength(3);
+  expect(screen.getByText(/patient confirmed/i)).toBeVisible();
+  expect(screen.getByText(/acknowledgement clock starts only after/i)).toBeVisible();
+  const acknowledge = screen.getAllByRole("button", {
+    name: /i received this appointment invitation/i,
+  });
+  expect(acknowledge).toHaveLength(2);
+  fireEvent.click(acknowledge[1]);
+  expect(values.onAcknowledge).toHaveBeenCalledWith(escalated);
+  expect(screen.queryByRole("button", { name: /check failed or overdue/i })).toBeNull();
+});
+
+test("an appointment correction cannot reuse approval state under a different purpose", () => {
+  const values = props();
+  const staleAppointment: DeliveryItem = {
+    ...delivered,
+    source_entry_id: appointmentEntry.id,
+    communication_purpose: "appointment_invitation",
+    follow_up: null,
+  };
+  render(
+    <DeliveryCenter
+      {...values}
+      patientFacingEntries={[appointmentEntry]}
+      readiness={{
+        ...deliveryReadiness,
+        deliveries: [staleAppointment],
+        terminology_assessments: [appointmentAssessment],
+      }}
+    />,
+  );
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  expect(screen.getByRole("button", { name: /queue current version as correction/i })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Communication purpose"), {
+    target: { value: "appointment_invitation" },
+  });
+  expect(screen.getByRole("button", { name: /queue current version as correction/i })).toBeDisabled();
 });
 
 test("missing route and empty ledger fail visibly without creating an action", () => {
@@ -184,7 +340,8 @@ test("entry selection recalculates a non-medication approval contract", () => {
   expect(values.onQueue).toHaveBeenCalledWith(
     plainEntry,
     "contact-whatsapp",
-    { clinical: true, identity: true, medication: false },
+    "care_summary",
+    { clinical: true, identity: true, medication: false, appointment: false },
   );
 });
 
