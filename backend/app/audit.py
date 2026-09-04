@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -23,17 +24,69 @@ FORBIDDEN_METADATA_KEYS = {
     "redacted_value",
     "transcript",
 }
+ALLOWED_METADATA_KEYS = {
+    "answer_state",
+    "assigned",
+    "claim_count",
+    "entry_id",
+    "entry_type",
+    "feature_count",
+    "feedback_action",
+    "flag_count",
+    "from_tier",
+    "from_version",
+    "intent",
+    "interaction_type",
+    "mention_count",
+    "owner_role",
+    "policy_version",
+    "provider",
+    "provider_failure_code",
+    "provider_status",
+    "question_hash",
+    "redaction_detector",
+    "redaction_entity_counts",
+    "resolved",
+    "safe",
+    "target_version",
+    "thread_id",
+    "to_tier",
+    "to_version",
+    "visibility",
+}
+SAFE_AUDIT_REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}\Z")
 
 
 def _canonical_json(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
+def _all_metadata_keys(value: object) -> set[str]:
+    if isinstance(value, dict):
+        return {str(key).lower() for key in value} | {
+            nested for item in value.values() for nested in _all_metadata_keys(item)
+        }
+    if isinstance(value, (list, tuple)):
+        return {nested for item in value for nested in _all_metadata_keys(item)}
+    return set()
+
+
 def _validate_metadata(value: dict) -> None:
-    keys = {str(key).lower() for key in value}
+    keys = _all_metadata_keys(value)
     blocked = keys & FORBIDDEN_METADATA_KEYS
     if blocked:
         raise ValueError(f"Audit metadata contains forbidden keys: {sorted(blocked)}")
+    unexpected = set(value) - ALLOWED_METADATA_KEYS
+    if unexpected:
+        raise ValueError(f"Audit metadata keys are not allow-listed: {sorted(unexpected)}")
+
+
+def _safe_request_id(value: str | None) -> str:
+    if value is None:
+        return new_id()
+    if SAFE_AUDIT_REQUEST_ID.fullmatch(value):
+        return value
+    return f"sha256:{hashlib.sha256(value.encode('utf-8')).hexdigest()[:56]}"
 
 
 def append_audit(
@@ -70,7 +123,7 @@ def append_audit(
         "object_type": object_type,
         "object_id": object_id,
         "object_version": object_version,
-        "request_id": request_id or new_id(),
+        "request_id": _safe_request_id(request_id),
         "metadata": safe_metadata,
         "previous_hash": previous_hash,
         "created_at": timestamp.isoformat(),

@@ -12,6 +12,7 @@ from app.providers import (
     ScribeDraft,
 )
 from app.scribe import LocalDeterministicScribe
+from app.telemetry import SafeTelemetrySink
 
 
 def payload(*, passed: bool = True) -> RedactedPayload:
@@ -174,3 +175,36 @@ def test_unexpected_exception_is_stable_and_missing_fallback_fails_closed() -> N
             no_fallback.generate(payload=payload(), interaction_type="doctor_consult")
     finally:
         no_fallback.close()
+
+
+def test_provider_telemetry_reports_state_without_exporting_payload() -> None:
+    telemetry = SafeTelemetrySink()
+    primary = UnavailableProvider()
+    gateway = ProviderGateway(
+        primary,
+        fallback=LocalDeterministicScribe(),
+        failure_threshold=1,
+        telemetry=telemetry,
+    )
+    try:
+        outcome = gateway.generate(payload=payload(), interaction_type="doctor_consult")
+        assert outcome.status == "rule_only_degraded"
+    finally:
+        gateway.close()
+    event = telemetry.snapshot()[-1]
+    assert event["attributes"] == {
+        "provider_name": primary.name,
+        "provider_status": "rule_only_degraded",
+        "failure_code": "provider_unavailable",
+        "circuit_state": "open",
+        "duration_ms": event["attributes"]["duration_ms"],
+    }
+    assert payload().text not in str(event)
+
+    failed_closed = ProviderGateway(UnavailableProvider(), telemetry=telemetry)
+    try:
+        with pytest.raises(ProviderCallError):
+            failed_closed.generate(payload=payload(), interaction_type="doctor_consult")
+    finally:
+        failed_closed.close()
+    assert telemetry.snapshot()[-1]["attributes"]["provider_status"] == "failed_closed"

@@ -37,6 +37,7 @@ from app.importance import (
 from app.main import _author, _iso, _serialize_version, create_app
 from app.models import (
     AuditEvent,
+    Clinic,
     Entry,
     EntryVersion,
     FeaturePosterior,
@@ -139,6 +140,51 @@ def test_audit_rejects_sensitive_metadata_counts_events_and_accepts_empty_chain(
                 object_id="test-1",
                 metadata={"Transcript": "must never enter audit"},
             )
+        with pytest.raises(ValueError, match="forbidden keys"):
+            append_audit(
+                session,
+                clinic_id="clinic-empty",
+                actor_id=None,
+                action="unsafe",
+                object_type="test",
+                object_id="test-2",
+                metadata={"safe": {"nested": {"Prompt": "must never enter audit"}}},
+            )
+        with pytest.raises(ValueError, match="forbidden keys"):
+            append_audit(
+                session,
+                clinic_id="clinic-empty",
+                actor_id=None,
+                action="unsafe",
+                object_type="test",
+                object_id="test-2-list",
+                metadata={"safe": [{"Transcript": "must never enter audit"}]},
+            )
+        with pytest.raises(ValueError, match="not allow-listed"):
+            append_audit(
+                session,
+                clinic_id="clinic-empty",
+                actor_id=None,
+                action="unsafe",
+                object_type="test",
+                object_id="test-3",
+                metadata={"new_unreviewed_field": "unsafe by default"},
+            )
+        session.add(Clinic(id="clinic-empty", name="Synthetic Empty Clinic"))
+        session.flush()
+        unsafe_request_id = "maya.chen@example.test +65 9123 4567"
+        sanitized = append_audit(
+            session,
+            clinic_id="clinic-empty",
+            actor_id=None,
+            action="safe",
+            object_type="test",
+            object_id="test-4",
+            request_id=unsafe_request_id,
+            metadata={"safe": True},
+        )
+        assert sanitized.request_id.startswith("sha256:")
+        assert unsafe_request_id not in sanitized.request_id
     empty.engine.dispose()
 
     with app.state.database.session() as session:

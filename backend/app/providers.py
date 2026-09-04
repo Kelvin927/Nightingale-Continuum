@@ -10,6 +10,8 @@ from threading import Lock
 from time import monotonic
 from typing import Protocol
 
+from .telemetry import SafeTelemetrySink
+
 
 @dataclass(frozen=True)
 class RedactedPayload:
@@ -80,6 +82,7 @@ class ProviderGateway:
         failure_threshold: int = 3,
         reset_after_seconds: float = 30.0,
         clock: Callable[[], float] = monotonic,
+        telemetry: SafeTelemetrySink | None = None,
     ) -> None:
         if timeout_seconds <= 0 or failure_threshold < 1 or reset_after_seconds <= 0:
             raise ValueError("Provider resilience limits must be positive")
@@ -89,6 +92,7 @@ class ProviderGateway:
         self.failure_threshold = failure_threshold
         self.reset_after_seconds = reset_after_seconds
         self._clock = clock
+        self._telemetry = telemetry
         self._failure_count = 0
         self._opened_until: float | None = None
         self._lock = Lock()
@@ -149,18 +153,47 @@ class ProviderGateway:
         degraded = ScribeDraft(draft.title, draft.content, draft.confidence, flags)
         return ProviderOutcome(degraded, self.fallback.name, "rule_only_degraded", code)
 
+    def _emit(self, outcome: ProviderOutcome, started: float) -> None:
+        if self._telemetry is None:
+            return
+        self._telemetry.emit(
+            "provider.call.completed",
+            provider_name=self.provider.name,
+            provider_status=outcome.status,
+            failure_code=outcome.failure_code,
+            circuit_state=self.state,
+            duration_ms=round(max(0.0, self._clock() - started) * 1000, 3),
+        )
+
     def generate(self, *, payload: RedactedPayload, interaction_type: str) -> ProviderOutcome:
         if not payload.receipt_passed:
             raise ValueError("Provider gateway requires a passing redaction receipt")
+        started = self._clock()
         try:
             self._before_call()
             draft = self._invoke(payload, interaction_type)
         except ProviderCallError as exc:
             if exc.code != "provider_circuit_open":
                 self._record_failure()
-            return self._fallback(payload, interaction_type, exc.code)
+            try:
+                outcome = self._fallback(payload, interaction_type, exc.code)
+            except ProviderCallError:
+                self._emit(
+                    ProviderOutcome(
+                        ScribeDraft("", "", 0.0, ()),
+                        self.provider.name,
+                        "failed_closed",
+                        exc.code,
+                    ),
+                    started,
+                )
+                raise
+            self._emit(outcome, started)
+            return outcome
         self._record_success()
-        return ProviderOutcome(draft, self.provider.name, "live", None)
+        outcome = ProviderOutcome(draft, self.provider.name, "live", None)
+        self._emit(outcome, started)
+        return outcome
 
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)

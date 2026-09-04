@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from hashlib import sha256
+from time import monotonic
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -84,6 +85,7 @@ from .scribe import (
     receipt_dict,
 )
 from .seed import DEMO_USERS, seed_database
+from .telemetry import SafeTelemetrySink, normalize_request_id, route_template
 
 API_PREFIX = "/api/v1"
 
@@ -247,8 +249,13 @@ def create_app(
     if seed_data:
         with database.session() as session:
             seed_database(session)
+    telemetry = SafeTelemetrySink()
     scribe_provider = LocalDeterministicScribe()
-    scribe_gateway = ProviderGateway(scribe_provider)
+    scribe_gateway = ProviderGateway(
+        scribe_provider,
+        fallback=LocalDeterministicScribe(),
+        telemetry=telemetry,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -274,10 +281,37 @@ def create_app(
     app.state.database = database
     app.state.scribe_provider = scribe_provider
     app.state.scribe_gateway = scribe_gateway
+    app.state.telemetry = telemetry
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
-        response = await call_next(request)
+        request_id = normalize_request_id(request.headers.get("X-Request-ID"))
+        request.state.request_id = request_id
+        started = monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            telemetry.emit(
+                "http.request.failed",
+                request_id=request_id,
+                http_method=request.method,
+                route_template=route_template(request.scope),
+                status_code=500,
+                status_class="5xx",
+                duration_ms=round((monotonic() - started) * 1000, 3),
+                error_code="unhandled_application_error",
+            )
+            raise
+        telemetry.emit(
+            "http.request.completed",
+            request_id=request_id,
+            http_method=request.method,
+            route_template=route_template(request.scope),
+            status_code=response.status_code,
+            status_class=f"{response.status_code // 100}xx",
+            duration_ms=round((monotonic() - started) * 1000, 3),
+        )
+        response.headers["X-Request-ID"] = request_id
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
