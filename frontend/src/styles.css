@@ -423,6 +423,28 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .conflict-resolution-result strong { font-size: 9px; }
 .conflict-resolution-result p { margin: 0; color: #56736a; font-size: 8px; line-height: 1.45; text-transform: none; }
 
+.merge-alert { display: flex; align-items: flex-start; gap: 9px; margin-top: 16px; padding: 11px; color: #75463c; background: #fae9e5; border: 1px solid #ebcec7; border-radius: 9px; }
+.merge-alert svg { flex: 0 0 auto; }
+.merge-alert div { display: grid; gap: 3px; }
+.merge-alert strong { font: 700 11px Georgia, serif; }
+.merge-alert p { margin: 0; color: #806159; font-size: 8px; line-height: 1.5; }
+.merge-version-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 11px; }
+.merge-version-panel { min-width: 0; padding: 10px; background: #f5f7f4; border: 1px solid #dce4df; border-radius: 9px; }
+.merge-version-panel > div { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; }
+.merge-version-panel strong { color: #536c67; font-size: 7px; }
+.merge-version-panel pre { height: 116px; margin: 8px 0; overflow: auto; color: #344b47; background: #fff; border-radius: 6px; padding: 8px; font: 7.5px/1.5 ui-monospace, monospace; white-space: pre-wrap; }
+.merge-version-panel code { display: block; overflow: hidden; color: #929d99; font-size: 6px; text-overflow: ellipsis; white-space: nowrap; }
+.merge-status { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; padding: 9px; border-radius: 8px; }
+.merge-status.safe { color: #286553; background: #e3f1ea; }
+.merge-status.manual { color: #7b5628; background: #faf0d9; }
+.merge-status div { display: grid; gap: 2px; }
+.merge-status strong { font-size: 9px; }
+.merge-status p { margin: 0; color: inherit; font-size: 7.5px; line-height: 1.45; opacity: .82; }
+.merge-draft-field { display: grid; gap: 5px; margin-top: 11px; color: #536b67; font-size: 9px; font-weight: 800; }
+.merge-draft-field textarea { width: 100%; padding: 9px 10px; color: #304946; background: #fbfcfa; border: 1px solid #d4dfd9; border-radius: 8px; font: 500 9px/1.5 ui-monospace, monospace; resize: vertical; }
+.merge-draft-field small { color: #84918e; font-size: 7px; font-weight: 500; }
+.merge-attestation { display: grid; margin-top: 9px; }
+
 .scribe-layout { display: grid; grid-template-columns: 130px 1fr; gap: 16px; margin-top: 18px; }
 .capture-orb { width: 125px; height: 125px; display: grid; place-items: center; align-content: center; gap: 7px; color: #4b7069; background: #e5f0eb; border: 1px solid #cce0d6; border-radius: 50%; box-shadow: inset 0 0 0 8px rgb(255 255 255 / 45%); }
 .capture-orb span { font-size: 8px; font-weight: 800; text-transform: uppercase; }
@@ -617,6 +639,8 @@ button:disabled { cursor: wait; opacity: 0.58; }
   .research-grid { grid-template-columns: 1fr; }
   .conflict-source-grid { grid-template-columns: 1fr; }
   .conflict-actions { grid-template-columns: 1fr; }
+  .merge-version-grid { grid-template-columns: 1fr; }
+  .merge-version-panel pre { height: 84px; }
 }
 
 @media (max-width: 560px) {

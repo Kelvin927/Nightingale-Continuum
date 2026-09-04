@@ -268,7 +268,15 @@ def _conflict_response(exc: VersionConflictError) -> HTTPException:
             "expected_version": exc.expected_version,
             "current_version": exc.current_version,
             "current_version_id": exc.current_version_id,
-            "resolution": "Reload the current version, compare, and resubmit intentionally.",
+            "base_snapshot": exc.base_snapshot,
+            "current_snapshot": exc.current_snapshot,
+            "proposed_content": exc.proposed_content,
+            "proposed_content_hash": exc.proposed_content_hash,
+            "merge_assistance": exc.merge_assistance,
+            "resolution": (
+                "Compare base, current, and proposed content. Any merged content is a draft "
+                "that requires human review and an intentional resubmission."
+            ),
         },
     )
 

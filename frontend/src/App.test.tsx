@@ -63,7 +63,7 @@ import {
   viewer,
   workspace,
 } from "./test/fixtures";
-import type { Role } from "./types";
+import type { Role, VersionConflictDetail } from "./types";
 
 const mockedApi = vi.mocked(api);
 
@@ -343,6 +343,66 @@ test("admin workflow verifies audit integrity and runs retention with a refreshe
   await waitFor(() => expect(mockedApi.runRetention).toHaveBeenCalledWith("user-admin"));
   expect(await screen.findByRole("status")).toHaveTextContent("1 tier changes recorded");
   await waitFor(() => expect(mockedApi.auditEvents).toHaveBeenCalledTimes(2));
+});
+
+test("concurrent edits become a three-way reviewed draft before a fresh save", async () => {
+  await renderFor("user-clinician");
+  const conflictDetail: VersionConflictDetail = {
+    code: "version_conflict",
+    message: "The section changed after it was loaded.",
+    expected_version: 1,
+    current_version: 2,
+    current_version_id: "version-current-2",
+    base_snapshot: {
+      version_id: "version-base-1",
+      version: 1,
+      content: "Assessment line.\nFollow-up pending.",
+      content_hash: "a".repeat(64),
+      created_at: "2026-09-05T08:00:00Z",
+    },
+    current_snapshot: {
+      version_id: "version-current-2",
+      version: 2,
+      content: "Assessment line.\nFollow-up booked.",
+      content_hash: "b".repeat(64),
+      created_at: "2026-09-05T08:01:00Z",
+    },
+    proposed_content: "Reviewed assessment.\nFollow-up pending.",
+    proposed_content_hash: "c".repeat(64),
+    merge_assistance: {
+      status: "non_overlapping_draft",
+      auto_merge_safe: true,
+      merged_content: "Reviewed assessment.\nFollow-up booked.",
+      conflicting_hunks: [],
+    },
+    resolution: "Compare base, current, and proposed content before resubmitting.",
+  };
+  mockedApi.editEntry.mockRejectedValueOnce(new ApiError(409, conflictDetail));
+
+  const clinicalCard = screen.getByRole("article", { name: /assessment and plan/i });
+  fireEvent.click(within(clinicalCard).getByRole("button", { name: /edit section/i }));
+  fireEvent.change(screen.getByLabelText("Note content"), {
+    target: { value: conflictDetail.proposed_content },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /save version/i }));
+
+  expect(await screen.findByRole("heading", { name: "Concurrent edit review" })).toBeVisible();
+  expect(screen.getByText(/Assessment line\.\s*Follow-up pending\./)).toBeVisible();
+  expect(screen.getByText(/Assessment line\.\s*Follow-up booked\./)).toBeVisible();
+  fireEvent.click(screen.getByLabelText(/compared the base, current record, and my draft/i));
+  fireEvent.click(screen.getByRole("button", { name: /open reviewed draft/i }));
+  expect(screen.getByLabelText("Note content")).toHaveValue(
+    "Reviewed assessment.\nFollow-up booked.",
+  );
+  fireEvent.click(screen.getByRole("button", { name: /save version/i }));
+  await waitFor(() => expect(mockedApi.editEntry).toHaveBeenLastCalledWith(
+    "user-clinician",
+    "entry-clinician",
+    expect.objectContaining({
+      content: "Reviewed assessment.\nFollow-up booked.",
+      expected_version: 2,
+    }),
+  ));
 });
 
 test("admin retention remains available without an assigned patient and skips care refresh", async () => {

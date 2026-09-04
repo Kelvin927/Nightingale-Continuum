@@ -62,4 +62,13 @@ def test_same_section_stale_write_has_deterministic_conflict(client, identities,
     assert detail["code"] == "version_conflict"
     assert detail["expected_version"] == 1
     assert detail["current_version"] == 2
-    assert detail["resolution"].startswith("Reload")
+    assert detail["base_snapshot"]["version"] == 1
+    assert detail["base_snapshot"]["content"] == entry["version"]["content"]
+    assert detail["current_snapshot"]["version"] == 2
+    assert "First concurrent change." in detail["current_snapshot"]["content"]
+    assert "Second concurrent change." in detail["proposed_content"]
+    assert len(detail["proposed_content_hash"]) == 64
+    assert detail["merge_assistance"]["status"] == "manual_review_required"
+    assert detail["merge_assistance"]["auto_merge_safe"] is False
+    assert detail["merge_assistance"]["merged_content"] is None
+    assert detail["resolution"].startswith("Compare base")

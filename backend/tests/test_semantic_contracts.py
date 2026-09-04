@@ -383,7 +383,13 @@ def test_care_lifecycle_persists_exact_versions_audit_contract_and_diff(
                 expected_version=99,
                 reason="Stale",
             )
-        assert edit_conflict.value == VersionConflictError(99, 3, reverted.id)
+        assert edit_conflict.value.expected_version == 99
+        assert edit_conflict.value.current_version == 3
+        assert edit_conflict.value.current_version_id == reverted.id
+        assert edit_conflict.value.base_snapshot is None
+        assert edit_conflict.value.current_snapshot is not None
+        assert edit_conflict.value.proposed_content == "Stale edit"
+        assert edit_conflict.value.merge_assistance is None
 
         with pytest.raises(VersionConflictError) as revert_conflict:
             revert_entry(
@@ -894,7 +900,9 @@ def test_unversioned_entry_conflicts_return_an_empty_current_version_identifier(
         for operation in operations:
             with pytest.raises(VersionConflictError) as error:
                 operation()
-            assert error.value == VersionConflictError(1, 0, "")
+            assert error.value.expected_version == 1
+            assert error.value.current_version == 0
+            assert error.value.current_version_id == ""
 
 
 def test_shadow_policy_two_observation_variance_and_unclipped_interval_are_exact(

@@ -23,6 +23,106 @@ class VersionConflictError(Exception):
     expected_version: int
     current_version: int
     current_version_id: str
+    base_snapshot: dict[str, object] | None = None
+    current_snapshot: dict[str, object] | None = None
+    proposed_content: str | None = None
+    proposed_content_hash: str | None = None
+    merge_assistance: dict[str, object] | None = None
+
+
+def _line_edits(base: str, changed: str) -> list[tuple[int, int, list[str]]]:
+    base_lines = base.splitlines(keepends=True)
+    changed_lines = changed.splitlines(keepends=True)
+    matcher = difflib.SequenceMatcher(a=base_lines, b=changed_lines)
+    return [
+        (start, end, changed_lines[changed_start:changed_end])
+        for operation, start, end, changed_start, changed_end in matcher.get_opcodes()
+        if operation != "equal"
+    ]
+
+
+def _edits_overlap(
+    left: tuple[int, int, list[str]],
+    right: tuple[int, int, list[str]],
+) -> bool:
+    left_start, left_end, _ = left
+    right_start, right_end, _ = right
+    if left_start == left_end and right_start == right_end:
+        return left_start == right_start
+    if left_start == left_end:
+        return right_start <= left_start <= right_end
+    if right_start == right_end:
+        return left_start <= right_start <= left_end
+    return max(left_start, right_start) < min(left_end, right_end)
+
+
+def build_merge_assistance(base: str, proposed: str, current: str) -> dict[str, object]:
+    """Build a conservative three-way draft; never persist it automatically."""
+
+    if proposed == current:
+        return {
+            "status": "identical",
+            "auto_merge_safe": True,
+            "merged_content": current,
+            "conflicting_hunks": [],
+        }
+    if proposed == base:
+        return {
+            "status": "current_only",
+            "auto_merge_safe": True,
+            "merged_content": current,
+            "conflicting_hunks": [],
+        }
+    if current == base:
+        return {
+            "status": "proposed_only",
+            "auto_merge_safe": True,
+            "merged_content": proposed,
+            "conflicting_hunks": [],
+        }
+
+    proposed_edits = _line_edits(base, proposed)
+    current_edits = _line_edits(base, current)
+    overlaps = [
+        {
+            "base_start_line": max(left[0], right[0]) + 1,
+            "base_end_line": max(left[1], right[1]),
+            "proposed_text": "".join(left[2]),
+            "current_text": "".join(right[2]),
+        }
+        for left in proposed_edits
+        for right in current_edits
+        if _edits_overlap(left, right)
+    ]
+    if overlaps:
+        return {
+            "status": "manual_review_required",
+            "auto_merge_safe": False,
+            "merged_content": None,
+            "conflicting_hunks": overlaps,
+        }
+
+    merged_lines = base.splitlines(keepends=True)
+    for start, end, replacement in sorted(
+        [*proposed_edits, *current_edits], key=lambda edit: (edit[0], edit[1]), reverse=True
+    ):
+        merged_lines[start:end] = replacement
+    return {
+        "status": "non_overlapping_draft",
+        "auto_merge_safe": True,
+        "merged_content": "".join(merged_lines),
+        "conflicting_hunks": [],
+    }
+
+
+def _version_snapshot(version: EntryVersion) -> dict[str, object]:
+    return {
+        "version_id": version.id,
+        "version": version.version,
+        "content": version.content,
+        "content_hash": version.content_hash,
+        "created_at": version.created_at.isoformat(),
+    }
 
 
 def current_version(session: Session, entry: Entry) -> EntryVersion:
@@ -106,10 +206,26 @@ def edit_entry(
     request_id: str | None = None,
 ) -> EntryVersion:
     if expected_version != entry.current_version:
+        base = session.scalar(
+            select(EntryVersion).where(
+                EntryVersion.entry_id == entry.id,
+                EntryVersion.version == expected_version,
+            )
+        )
+        latest = current_version(session, entry) if entry.current_version_id else None
         raise VersionConflictError(
             expected_version,
             entry.current_version,
             entry.current_version_id or "",
+            base_snapshot=_version_snapshot(base) if base else None,
+            current_snapshot=_version_snapshot(latest) if latest else None,
+            proposed_content=content,
+            proposed_content_hash=content_hash(content),
+            merge_assistance=(
+                build_merge_assistance(base.content, content, latest.content)
+                if base and latest
+                else None
+            ),
         )
     prior = current_version(session, entry)
     next_version = EntryVersion(

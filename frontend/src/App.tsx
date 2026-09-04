@@ -23,6 +23,7 @@ import {
 
 import { ApiError, api } from "./api";
 import { AdminPanel } from "./components/AdminPanel";
+import { ConcurrentEditDialog } from "./components/ConcurrentEditDialog";
 import { ConflictReviewDialog } from "./components/ConflictReviewDialog";
 import {
   CommentDialog,
@@ -54,6 +55,7 @@ import type {
   ResolvedProvenance,
   Role,
   StreamingCapture,
+  VersionConflictDetail,
   Viewer,
   Workspace,
 } from "./types";
@@ -73,6 +75,14 @@ function friendlyError(reason: unknown): string {
     return detail.message ?? reason.message;
   }
   return reason instanceof Error ? reason.message : "Something went wrong.";
+}
+
+function isVersionConflictDetail(detail: unknown): detail is VersionConflictDetail {
+  if (!detail || typeof detail !== "object") return false;
+  const candidate = detail as Partial<VersionConflictDetail>;
+  return candidate.code === "version_conflict"
+    && typeof candidate.current_version === "number"
+    && typeof candidate.resolution === "string";
 }
 
 function AppSkeleton() {
@@ -119,6 +129,10 @@ export default function App() {
   const [retentionBusy, setRetentionBusy] = useState(false);
   const [activeConflict, setActiveConflict] = useState<ConflictItem | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
+  const [editConflict, setEditConflict] = useState<{
+    entry: Entry;
+    detail: VersionConflictDetail;
+  } | null>(null);
 
   const selectedIdentity = identities.find((item) => item.id === userId) ?? null;
   const currentPatient = workspace?.patient ?? patients.find((patient) => patient.id === patientId) ?? null;
@@ -195,6 +209,7 @@ export default function App() {
     setError(null);
     setActiveSource(null);
     setActiveConflict(null);
+    setEditConflict(null);
     setPatientId(null);
     setWorkspace(null);
     setGlance(null);
@@ -307,11 +322,20 @@ export default function App() {
     const active = actionContext.current;
     if (!active.patientId || !active.noteDialog.open) return;
     if (active.noteDialog.entry) {
-      await api.editEntry(active.userId, active.noteDialog.entry.id, {
-        content: payload.content,
-        expected_version: active.noteDialog.entry.current_version,
-        reason: "Manual role-owned update",
-      });
+      try {
+        await api.editEntry(active.userId, active.noteDialog.entry.id, {
+          content: payload.content,
+          expected_version: active.noteDialog.entry.current_version,
+          reason: "Manual role-owned update",
+        });
+      } catch (reason) {
+        if (reason instanceof ApiError && isVersionConflictDetail(reason.detail)) {
+          setEditConflict({ entry: active.noteDialog.entry, detail: reason.detail });
+          await reload(active.userId, active.patientId, active.role);
+          return;
+        }
+        throw reason;
+      }
       announce("A new immutable version was saved.");
     } else {
       await api.createEntry(active.userId, active.patientId, {
@@ -323,6 +347,30 @@ export default function App() {
       announce("The longitudinal entry was added.");
     }
     await reload(active.userId, active.patientId, active.role);
+  }
+
+  function openReviewedMergeDraft(content: string) {
+    const conflict = editConflict;
+    if (!conflict) return;
+    const current = conflict.detail.current_snapshot;
+    if (!current) return;
+    const { entry } = conflict;
+    setEditConflict(null);
+    setNoteDialog({
+      open: true,
+      entry: {
+        ...entry,
+        current_version: current.version,
+        version: {
+          ...entry.version,
+          id: current.version_id,
+          version: current.version,
+          content,
+          content_hash: current.content_hash,
+          created_at: current.created_at,
+        },
+      },
+    });
   }
 
   async function startThread(title: string, body: string, assignedTo: string | null) {
@@ -724,6 +772,7 @@ export default function App() {
       {historyEntry && <HistoryDialog entry={historyEntry} versions={versions} loading={historyLoading} onClose={() => { setHistoryEntry(null); setVersions([]); }} onRevert={restoreVersion} />}
       {scribeOpen && <ScribeDialog role={currentRole} onClose={() => setScribeOpen(false)} onSubmit={submitScribe} onRunStreamScenario={runStreamingSafetyScenario} onReviewStreamSignal={reviewStreamingSignal} onFinalizeStream={finalizeStreamingCapture} />}
       {activeConflict && <ConflictReviewDialog conflict={activeConflict} role={currentRole} busy={conflictBusy} onClose={() => setActiveConflict(null)} onResolve={resolveActiveConflict} />}
+      {editConflict && <ConcurrentEditDialog detail={editConflict.detail} onClose={() => setEditConflict(null)} onUseDraft={openReviewedMergeDraft} />}
       {reviewOpen && currentPatient && <ReviewCopilotDialog result={reviewResult} busy={reviewBusy} onClose={() => setReviewOpen(false)} onAsk={(question) => askEvidenceReview(question, currentPatient.id)} onSource={(spanId) => { setReviewOpen(false); void openSource(spanId); }} onTaskSource={(entryId) => { setReviewOpen(false); scrollToEntry(entryId); }} />}
       {toast && <div className="toast" role="status"><ShieldCheck size={17} />{toast}</div>}
     </div>

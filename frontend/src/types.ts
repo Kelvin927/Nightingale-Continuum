@@ -68,6 +68,43 @@ export interface Entry {
   comment_threads?: CommentThread[];
 }
 
+export interface VersionSnapshot {
+  version_id: string;
+  version: number;
+  content: string;
+  content_hash: string;
+  created_at: string;
+}
+
+export interface VersionConflictDetail {
+  code: "version_conflict";
+  message: string;
+  expected_version: number;
+  current_version: number;
+  current_version_id: string;
+  base_snapshot: VersionSnapshot | null;
+  current_snapshot: VersionSnapshot | null;
+  proposed_content: string | null;
+  proposed_content_hash: string | null;
+  merge_assistance: {
+    status:
+      | "identical"
+      | "current_only"
+      | "proposed_only"
+      | "non_overlapping_draft"
+      | "manual_review_required";
+    auto_merge_safe: boolean;
+    merged_content: string | null;
+    conflicting_hunks: Array<{
+      base_start_line: number;
+      base_end_line: number;
+      proposed_text: string;
+      current_text: string;
+    }>;
+  } | null;
+  resolution: string;
+}
+
 export interface DeliveryContact {
   id: string;
   channel: "whatsapp" | "sms" | "voice" | "email";
