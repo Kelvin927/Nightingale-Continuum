@@ -350,3 +350,21 @@ class OutboundDelivery(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ClinicConfigVersion(Base):
+    __tablename__ = "clinic_config_versions"
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "revision", name="uq_clinic_config_revision"),
+        Index("ix_clinic_config_status", "clinic_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(24), nullable=False)
+    configuration: Mapped[dict] = mapped_column(JSON, nullable=False)
+    config_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+    activated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

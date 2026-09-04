@@ -25,6 +25,12 @@ from .care import (
     revert_entry,
     version_diff,
 )
+from .configuration import (
+    ClinicConfiguration,
+    activate_configuration,
+    active_configuration,
+    serialize_configuration,
+)
 from .conflicts import detect_structured_conflicts
 from .constants import DETERMINISTIC_DISPLAY_PROPENSITY
 from .database import Database, sqlite_version
@@ -1023,6 +1029,38 @@ def create_app(
                 for item in manifests
             ],
         }
+
+    @app.get(f"{API_PREFIX}/admin/clinic-config/schema")
+    def clinic_configuration_schema(actor: ActorDep) -> dict:
+        """Return the exact onboarding contract accepted by this release."""
+
+        require_admin(actor)
+        return ClinicConfiguration.model_json_schema()
+
+    @app.get(f"{API_PREFIX}/admin/clinic-config")
+    def clinic_configuration_get(session: SessionDep, actor: ActorDep) -> dict:
+        require_admin(actor)
+        record = active_configuration(session, actor.clinic_id)
+        if record is None:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "clinic_configuration_unavailable",
+                    "message": "No active clinic configuration is installed.",
+                },
+            )
+        return serialize_configuration(record)
+
+    @app.post(f"{API_PREFIX}/admin/clinic-config", status_code=201)
+    def clinic_configuration_activate(
+        payload: ClinicConfiguration,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        require_admin(actor)
+        record = activate_configuration(session, actor=actor, configuration=payload)
+        session.commit()
+        return serialize_configuration(record)
 
     @app.get(f"{API_PREFIX}/admin/audit/verify")
     def audit_verify(session: SessionDep, actor: ActorDep) -> dict:

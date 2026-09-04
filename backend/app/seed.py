@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .care import create_entry, current_version
+from .configuration import ClinicConfiguration, install_seed_configuration
 from .importance import build_glance_projection, generate_highlights_for_entry
 from .models import (
     CareTask,
@@ -63,9 +64,63 @@ def _ensure_demo_contact(session: Session) -> None:
     )
 
 
+def _ensure_demo_configurations(session: Session) -> None:
+    """Install two deliberately different, schema-valid clinic configurations."""
+
+    if session.get(Clinic, PRIMARY_CLINIC_ID) is not None:
+        install_seed_configuration(
+            session,
+            clinic_id=PRIMARY_CLINIC_ID,
+            configuration=ClinicConfiguration(
+                clinic_display_name="Northstar Family Medicine",
+                timezone="Asia/Singapore",
+                enabled_languages=["en-SG", "zh-SG"],
+                delivery_channels=["whatsapp", "sms"],
+                features={
+                    "streaming_capture": True,
+                    "multilingual_review": True,
+                    "outbound_delivery": True,
+                    "adaptive_ranking_shadow_only": True,
+                },
+                safety={
+                    "critical_risk_floor": 8.0,
+                    "provider_timeout_ms": 2_000,
+                    "delivery_receipt_sla_minutes": 15,
+                    "require_dose_attestation": True,
+                },
+            ),
+            created_at=_dt("2026-02-06T08:00:00"),
+        )
+    if session.get(Clinic, OTHER_CLINIC_ID) is not None:
+        install_seed_configuration(
+            session,
+            clinic_id=OTHER_CLINIC_ID,
+            configuration=ClinicConfiguration(
+                clinic_display_name="Riverside Community Clinic",
+                timezone="America/Los_Angeles",
+                enabled_languages=["en-US", "es-US"],
+                delivery_channels=["sms", "voice"],
+                features={
+                    "streaming_capture": True,
+                    "multilingual_review": True,
+                    "outbound_delivery": True,
+                    "adaptive_ranking_shadow_only": True,
+                },
+                safety={
+                    "critical_risk_floor": 9.0,
+                    "provider_timeout_ms": 2_500,
+                    "delivery_receipt_sla_minutes": 10,
+                    "require_dose_attestation": True,
+                },
+            ),
+            created_at=_dt("2026-02-06T08:00:00"),
+        )
+
+
 def seed_database(session: Session) -> None:
     if session.scalar(select(Clinic.id).limit(1)) is not None:
         _ensure_demo_contact(session)
+        _ensure_demo_configurations(session)
         session.commit()
         return
 
@@ -96,6 +151,7 @@ def seed_database(session: Session) -> None:
     session.add_all([maya, alex])
     session.flush()
     _ensure_demo_contact(session)
+    _ensure_demo_configurations(session)
 
     users = {
         "clinician": User(
