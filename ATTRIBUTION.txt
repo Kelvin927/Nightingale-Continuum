@@ -110,6 +110,43 @@ repository and is not relicensed by this attribution file.
 
 THIRD-PARTY STANDARDS AND RESEARCH
 
-FHIR, W3C PROV-O, NIST AI RMF, OWASP guidance, and cited research papers inform the
-design but are not bundled software dependencies. Human-readable citations and links
-appear in the technical brief.
+The following sources informed interface, threat-model, evaluation, and deployment
+decisions. They are cited as references, not redistributed, copied into source code, or
+claimed as original methods. Product copy, diagrams, policies, fixtures, and implementation
+are project-authored.
+
+NIST SP 800-63B Revision 4 - Authentication and Authenticator Management, final 2025
+https://pages.nist.gov/800-63-4/sp800-63b.html
+
+PostgreSQL - Row Security Policies
+https://www.postgresql.org/docs/current/ddl-rowsecurity.html
+
+OWASP - Logging Cheat Sheet
+https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+
+OpenTelemetry - Handling Sensitive Data
+https://opentelemetry.io/docs/security/handling-sensitive-data/
+
+HL7 FHIR R5 - Provenance, Communication, Appointment, MedicationRequest, and Dosage
+https://hl7.org/fhir/R5/provenance.html
+https://hl7.org/fhir/R5/communication.html
+https://hl7.org/fhir/R5/appointment.html
+https://hl7.org/fhir/R5/medicationrequest.html
+https://hl7.org/fhir/R5/dosage.html
+
+US National Library of Medicine - RxNorm APIs
+https://lhncbc.nlm.nih.gov/RxNav/APIs/RxNormAPIs.html
+
+US Food and Drug Administration - Clinical Decision Support Software Guidance,
+January 2026
+https://www.fda.gov/regulatory-information/search-fda-guidance-documents/clinical-decision-support-software
+
+Singapore Personal Data Protection Commission - Advisory Guidelines for the Healthcare Sector
+https://www.pdpc.gov.sg/guidelines-and-consultation/2017/10/advisory-guidelines-for-the-healthcare-sector
+
+AWS Prescriptive Guidance - Transactional Outbox and Circuit Breaker patterns
+https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html
+https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/circuit-breaker.html
+
+W3C - Web Content Accessibility Guidelines 2.2
+https://www.w3.org/TR/WCAG22/
