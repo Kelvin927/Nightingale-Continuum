@@ -11,6 +11,7 @@ from app.seed import DEMO_USERS, PRIMARY_PATIENT_ID
 def app():
     application = create_app(database_url="sqlite://", seed_data=True)
     yield application
+    application.state.scribe_gateway.close()
     application.state.database.engine.dispose()
 
 

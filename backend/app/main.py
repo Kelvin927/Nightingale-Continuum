@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -61,6 +62,7 @@ from .policy import (
     resolve_actor,
 )
 from .provenance import InvalidProvenanceError, resolve_span
+from .providers import ProviderGateway
 from .retention import apply_retention_policy
 from .review import build_evidence_review
 from .schemas import (
@@ -237,10 +239,29 @@ def create_app(
     database_url: str | None = None,
     seed_data: bool = True,
 ) -> FastAPI:
+    resolved_url = database_url or os.getenv(
+        "NIGHTINGALE_DATABASE_URL", "sqlite:///./nightingale.db"
+    )
+    database = Database(resolved_url)
+    database.create_all()
+    if seed_data:
+        with database.session() as session:
+            seed_database(session)
+    scribe_provider = LocalDeterministicScribe()
+    scribe_gateway = ProviderGateway(scribe_provider)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            scribe_gateway.close()
+
     app = FastAPI(
         title="Nightingale Continuum API",
         version="0.1.0",
         description="Evidence-bound longitudinal care-note prototype using synthetic data only.",
+        lifespan=lifespan,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -250,16 +271,9 @@ def create_app(
         allow_headers=["Content-Type", "X-Demo-User", "X-Request-ID"],
     )
 
-    resolved_url = database_url or os.getenv(
-        "NIGHTINGALE_DATABASE_URL", "sqlite:///./nightingale.db"
-    )
-    database = Database(resolved_url)
-    database.create_all()
-    if seed_data:
-        with database.session() as session:
-            seed_database(session)
     app.state.database = database
-    app.state.scribe_provider = LocalDeterministicScribe()
+    app.state.scribe_provider = scribe_provider
+    app.state.scribe_gateway = scribe_gateway
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -763,7 +777,7 @@ def create_app(
                 interaction_type=payload.interaction_type,
                 transcript=payload.transcript,
                 source_uri=payload.source_uri,
-                provider=request.app.state.scribe_provider,
+                provider=request.app.state.scribe_gateway,
             )
         except RedactionFidelityError as exc:
             session.rollback()
@@ -781,6 +795,8 @@ def create_app(
             "entry_id": result.entry.id,
             "status": "submitted_for_human_review",
             "provider": result.provider_name,
+            "provider_status": result.provider_status,
+            "provider_failure_code": result.provider_failure_code,
             "redaction_receipt": receipt_dict(result.receipt),
             "flags": result.flags,
         }

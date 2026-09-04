@@ -12,19 +12,12 @@ from .care import create_entry
 from .constants import AI_ENTRY_TYPES
 from .importance import generate_highlights_for_entry
 from .models import Entry, Patient, User
+from .providers import ProviderGateway, RedactedPayload, ScribeDraft
 from .redaction import RedactionReceipt, redact_text
 
 
 class RedactionFidelityError(ValueError):
     """Raised when privacy filtering cannot preserve clinical anchors exactly."""
-
-
-@dataclass(frozen=True)
-class ScribeDraft:
-    title: str
-    content: str
-    confidence: float
-    flags: tuple[str, ...]
 
 
 class LocalDeterministicScribe:
@@ -36,16 +29,16 @@ class LocalDeterministicScribe:
     def __init__(self) -> None:
         self.last_received_text: str | None = None
 
-    def generate(self, *, redacted_text: str, interaction_type: str) -> ScribeDraft:
-        self.last_received_text = redacted_text
-        lowered = redacted_text.lower()
+    def generate(self, *, payload: RedactedPayload, interaction_type: str) -> ScribeDraft:
+        self.last_received_text = payload.text
+        lowered = payload.text.lower()
         flags: list[str] = ["human_review_required"]
         if any(term in lowered for term in ("medication", "dose", " mg", "allerg")):
             flags.append("medication_or_allergy_review")
         if any(term in lowered for term in ("ignore previous", "system prompt", "reveal secret")):
             flags.append("instruction_like_content_detected")
         label = interaction_type.replace("_", " ").title()
-        non_placeholder_text = re.sub(r"<[^>]+>", " ", redacted_text)
+        non_placeholder_text = re.sub(r"<[^>]+>", " ", payload.text)
         meaningful_tokens = re.findall(r"[a-z0-9]+", non_placeholder_text.lower())
         uncertain_capture = len(meaningful_tokens) < 6 or any(
             marker in lowered
@@ -69,7 +62,7 @@ class LocalDeterministicScribe:
             content=(
                 "AI-GENERATED DRAFT - HUMAN REVIEW REQUIRED\n\n"
                 f"Interaction: {label}\n"
-                f"Source-grounded transcript extract: {redacted_text.strip()}\n\n"
+                f"Source-grounded transcript extract: {payload.text.strip()}\n\n"
                 "No clinical fact has been confirmed by this draft."
             ),
             confidence=0.82,
@@ -82,6 +75,8 @@ class ScribeIngestResult:
     entry: Entry
     receipt: RedactionReceipt
     provider_name: str
+    provider_status: str
+    provider_failure_code: str | None
     flags: tuple[str, ...]
 
 
@@ -94,7 +89,7 @@ def ingest_scribe(
     interaction_type: str,
     transcript: str,
     source_uri: str,
-    provider: LocalDeterministicScribe,
+    provider: ProviderGateway,
 ) -> ScribeIngestResult:
     if interaction_type not in AI_ENTRY_TYPES:
         raise ValueError("Unsupported interaction type")
@@ -104,7 +99,16 @@ def ingest_scribe(
         raise RedactionFidelityError(
             "Redaction did not preserve every safety-relevant clinical anchor"
         )
-    draft = provider.generate(redacted_text=redaction.text, interaction_type=interaction_type)
+    payload = RedactedPayload(
+        text=redaction.text,
+        sanitized_sha256=redaction.receipt.sanitized_sha256,
+        detector_version=redaction.receipt.detector_version,
+        clinical_anchor_count=redaction.receipt.clinical_anchor_count,
+        receipt_passed=redaction.receipt.passed,
+        purpose=interaction_type,
+    )
+    outcome = provider.generate(payload=payload, interaction_type=interaction_type)
+    draft = outcome.draft
     entry = create_entry(
         session,
         actor=system_actor,
@@ -131,13 +135,22 @@ def ingest_scribe(
         object_version=1,
         metadata={
             "interaction_type": interaction_type,
-            "provider": provider.name,
+            "provider": outcome.provider_name,
+            "provider_status": outcome.status,
+            "provider_failure_code": outcome.failure_code,
             "redaction_detector": redaction.receipt.detector_version,
             "redaction_entity_counts": redaction.receipt.entity_counts,
             "flag_count": len(draft.flags),
         },
     )
-    return ScribeIngestResult(entry, redaction.receipt, provider.name, draft.flags)
+    return ScribeIngestResult(
+        entry,
+        redaction.receipt,
+        outcome.provider_name,
+        outcome.status,
+        outcome.failure_code,
+        draft.flags,
+    )
 
 
 def receipt_dict(receipt: RedactionReceipt) -> dict:
