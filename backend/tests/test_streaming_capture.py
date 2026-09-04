@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 import app.main as main_module
-from app.care import current_version
 from app.capture import (
     CaptureContractError,
     add_segment,
@@ -15,6 +14,7 @@ from app.capture import (
     review_safety_signal,
     start_capture,
 )
+from app.care import current_version
 from app.models import (
     ClinicConfigVersion,
     Entry,
