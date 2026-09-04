@@ -192,9 +192,7 @@ def generate_highlights_for_entry(
     session: Session,
     *,
     entry: Entry,
-    actor_role: str = "clinician",
 ) -> list[Highlight]:
-    del actor_role
     version = current_version(session, entry)
     highlights: list[Highlight] = []
     for match in SENTENCE_PATTERN.finditer(version.content):
@@ -234,7 +232,6 @@ def generate_highlights_for_entry(
         )
         # Feedback updates the shadow policy only. Live ordering remains fixed
         # until an independently evaluated policy revision is promoted.
-        learned = 0.0
         highlight = Highlight(
             clinic_id=entry.clinic_id,
             patient_id=entry.patient_id,
@@ -247,8 +244,7 @@ def generate_highlights_for_entry(
             trust_state=entry.trust_state,
             status="suggested" if entry.owner_role == "system" else "accepted",
             base_score=score,
-            adaptive_score=learned,
-            rank_score=round(score + learned, 4),
+            rank_score=round(score, 4),
             score_factors=factors,
             created_at=entry.created_at,
         )
@@ -309,7 +305,7 @@ def record_feedback(
             assert item is not None
             _update_posterior(item, reward)
     highlight.status = {"accept": "accepted", "reject": "rejected", "pin": "pinned"}[action]
-    refresh_adaptive_scores(session, actor.clinic_id, actor.role)
+    refresh_adaptive_scores(session, actor.clinic_id)
     append_audit(
         session,
         clinic_id=actor.clinic_id,
@@ -326,10 +322,9 @@ def record_feedback(
     return feedback
 
 
-def refresh_adaptive_scores(session: Session, clinic_id: str, actor_role: str) -> None:
+def refresh_adaptive_scores(session: Session, clinic_id: str) -> None:
     """Keep live rank fixed while retaining posterior evidence for shadow evaluation."""
 
-    del actor_role
     for highlight in session.scalars(select(Highlight).where(Highlight.clinic_id == clinic_id)):
         highlight.adaptive_score = 0.0
         highlight.rank_score = round(highlight.base_score, 4)

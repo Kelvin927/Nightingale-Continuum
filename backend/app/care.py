@@ -103,9 +103,7 @@ def build_merge_assistance(base: str, proposed: str, current: str) -> dict[str, 
         }
 
     merged_lines = base.splitlines(keepends=True)
-    for start, end, replacement in sorted(
-        [*proposed_edits, *current_edits], key=lambda edit: (edit[0], edit[1]), reverse=True
-    ):
+    for start, end, replacement in sorted([*proposed_edits, *current_edits], reverse=True):
         merged_lines[start:end] = replacement
     return {
         "status": "non_overlapping_draft",

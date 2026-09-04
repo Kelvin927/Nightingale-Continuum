@@ -14,11 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 EXPECTED_CHECKED_BY_MODULE = {
-    "audit": 196,
-    "care": 248,
-    "conflicts": 176,
+    "audit": 209,
+    "care": 439,
+    "conflicts": 391,
     "evaluation": 228,
-    "importance": 738,
+    "importance": 732,
     "provenance": 105,
     "redaction": 137,
     "review": 261,

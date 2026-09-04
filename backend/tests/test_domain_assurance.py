@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -184,6 +185,10 @@ def test_audit_rejects_sensitive_metadata_counts_events_and_accepts_empty_chain(
             metadata={"safe": True},
         )
         assert sanitized.request_id.startswith("sha256:")
+        assert len(sanitized.request_id) == 64
+        assert sanitized.request_id == (
+            "sha256:" + hashlib.sha256(unsafe_request_id.encode()).hexdigest()[:57]
+        )
         assert unsafe_request_id not in sanitized.request_id
     empty.engine.dispose()
 

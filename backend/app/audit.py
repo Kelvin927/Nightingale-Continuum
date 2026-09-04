@@ -122,7 +122,10 @@ def _safe_request_id(value: str | None) -> str:
         return new_id()
     if SAFE_AUDIT_REQUEST_ID.fullmatch(value):
         return value
-    return f"sha256:{hashlib.sha256(value.encode('utf-8')).hexdigest()[:56]}"
+    # Keep the opaque replacement inside the same 64-character envelope accepted
+    # for caller-supplied request IDs while retaining as much digest material as
+    # that transport contract permits (seven-character prefix + 57 hex digits).
+    return f"sha256:{hashlib.sha256(value.encode()).hexdigest()[:57]}"
 
 
 def append_audit(

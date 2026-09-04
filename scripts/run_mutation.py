@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,13 @@ MUTMUT = ROOT / ".venv" / "bin" / "mutmut"
 MUTANT_WORKSPACE = BACKEND / "mutants"
 LOCK_PATH = BACKEND / ".mutmut-run.lock"
 BYTECODE_ROOTS = (BACKEND / "app", BACKEND / "tests")
+STAGING_IGNORE = shutil.ignore_patterns(
+    "mutants",
+    "__pycache__",
+    ".pytest_cache",
+    ".coverage",
+    "*.pyc",
+)
 
 
 def purge_bytecode_caches(roots: tuple[Path, ...] = BYTECODE_ROOTS) -> int:
@@ -46,6 +54,28 @@ def reset_mutant_workspace(workspace: Path = MUTANT_WORKSPACE) -> bool:
     return True
 
 
+def stage_backend(stage_root: Path) -> Path:
+    """Copy mutation inputs outside synced folders and generated caches."""
+    staged_backend = stage_root / "backend"
+    shutil.copytree(BACKEND, staged_backend, ignore=STAGING_IGNORE)
+
+    # The RLS contract test resolves the deployment fixture from the backend
+    # root when pytest runs inside mutmut's nested ``mutants`` workspace.
+    deployment = ROOT / "deployment"
+    if deployment.is_dir():
+        shutil.copytree(deployment, staged_backend / "deployment")
+    return staged_backend
+
+
+def publish_mutant_workspace(staged_backend: Path) -> None:
+    """Publish only a complete mutation workspace for evidence export."""
+    staged_workspace = staged_backend / "mutants"
+    if not staged_workspace.is_dir():
+        raise RuntimeError("mutmut completed without producing a mutant workspace")
+    reset_mutant_workspace()
+    shutil.copytree(staged_workspace, MUTANT_WORKSPACE)
+
+
 def main(arguments: list[str] | None = None) -> int:
     if not MUTMUT.is_file():
         print("Missing .venv. Run: make setup", file=sys.stderr)
@@ -74,17 +104,26 @@ def main(arguments: list[str] | None = None) -> int:
         environment = os.environ.copy()
         environment["NIGHTINGALE_DATABASE_URL"] = "sqlite://"
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
-        command = [
-            str(MUTMUT),
-            "run",
-            *(arguments if arguments is not None else sys.argv[1:]),
-        ]
-        return subprocess.run(  # noqa: S603
-            command,
-            cwd=BACKEND,
-            env=environment,
-            check=False,
-        ).returncode
+        forwarded = list(arguments if arguments is not None else sys.argv[1:])
+        if "--max-children" not in forwarded:
+            # Four workers avoid false timeout verdicts observed under eight-way
+            # contention while still keeping the complete critical run practical.
+            forwarded = ["--max-children", str(min(os.cpu_count() or 2, 4)), *forwarded]
+
+        with tempfile.TemporaryDirectory(prefix="nightingale-mutmut-") as temp_dir:
+            staged_backend = stage_backend(Path(temp_dir))
+            print(f"Running mutmut in local staging workspace: {staged_backend}")
+            command = [str(MUTMUT), "run", *forwarded]
+            result = subprocess.run(  # noqa: S603
+                command,
+                cwd=staged_backend,
+                env=environment,
+                check=False,
+            )
+            if result.returncode == 0:
+                publish_mutant_workspace(staged_backend)
+                print(f"Published complete mutation evidence to: {MUTANT_WORKSPACE}")
+            return result.returncode
 
 
 if __name__ == "__main__":

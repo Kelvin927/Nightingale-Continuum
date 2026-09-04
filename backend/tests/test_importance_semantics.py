@@ -64,7 +64,7 @@ def test_generated_highlights_and_source_spans_have_an_exact_persisted_contract(
             source_uri="session://exact-highlight-generation",
             created_at=reference_time,
         )
-        highlights = generate_highlights_for_entry(session, entry=entry, actor_role="clinician")
+        highlights = generate_highlights_for_entry(session, entry=entry)
         assert len(highlights) == 2
         medication, follow_up = highlights
         assert (
@@ -677,7 +677,7 @@ def test_rank_scores_are_persisted_at_the_documented_four_decimal_precision(
         assert generated[0].rank_score == 1.2346
 
         generated[0].rank_score = 0.0
-        refresh_adaptive_scores(session, patient.clinic_id, "clinician")
+        refresh_adaptive_scores(session, patient.clinic_id)
         assert generated[0].adaptive_score == 0.0
         assert generated[0].rank_score == 1.2346
 
@@ -728,6 +728,54 @@ def test_feedback_accepts_staff_full_propensity_and_accumulates_observations(
         assert all(
             (item.alpha, item.beta, item.observations) == (4.0, 2.0, 2) for item in posteriors
         )
+
+
+def test_feedback_refreshes_only_the_actors_clinic(
+    app, identities, patient_id, monkeypatch
+) -> None:
+    refreshed_clinics: list[str] = []
+
+    def capture_refresh(_session, clinic_id: str) -> None:
+        refreshed_clinics.append(clinic_id)
+
+    monkeypatch.setattr(importance_module, "refresh_adaptive_scores", capture_refresh)
+    with app.state.database.session() as session:
+        actor = session.get(User, identities["clinician"])
+        highlight = session.scalar(select(Highlight).where(Highlight.patient_id == patient_id))
+        assert actor is not None and highlight is not None
+        record_feedback(
+            session,
+            actor=actor,
+            highlight=highlight,
+            action="accept",
+            display_propensity=1.0,
+        )
+        assert refreshed_clinics == [actor.clinic_id]
+
+
+def test_glance_shadow_scoring_uses_global_role_and_each_items_clinic(
+    app, patient_id, monkeypatch
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def capture_adaptive_score(_session, **kwargs):
+        calls.append(kwargs)
+        return 0.4321
+
+    monkeypatch.setattr(importance_module, "adaptive_score", capture_adaptive_score)
+    with app.state.database.session() as session:
+        expected_clinic_id = session.scalar(
+            select(Highlight.clinic_id).where(Highlight.patient_id == patient_id)
+        )
+        assert expected_clinic_id is not None
+        projection = build_glance_projection(session, patient_id)
+        visible = [item for group in ("act_now", "watch") for item in projection["groups"][group]]
+        assert visible
+        assert all(item["shadow_score_factors"] == {"bounded_feedback": 0.4321} for item in visible)
+        assert len(calls) == len(visible)
+        assert all(call["clinic_id"] == expected_clinic_id for call in calls)
+        assert all(call["actor_role"] == "all" for call in calls)
+        assert all(call["features"] for call in calls)
 
 
 def test_ranking_and_glance_are_patient_scoped_bounded_ordered_and_grouped(

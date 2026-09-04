@@ -24,13 +24,23 @@ REQUIRED_PATHS = {
     "backend/tests/test_concurrent_edits.py",
     "backend/tests/test_self_learning_importance.py",
     "backend/tests/test_api_assurance.py",
+    "backend/tests/test_appointment_delivery.py",
+    "backend/tests/test_ai_regeneration.py",
+    "backend/tests/test_clinic_configuration.py",
+    "backend/tests/test_conflict_review.py",
     "backend/tests/test_domain_assurance.py",
     "backend/tests/test_evidence_review.py",
     "backend/tests/test_failure_injection.py",
     "backend/tests/test_importance_semantics.py",
+    "backend/tests/test_merge_assistance.py",
+    "backend/tests/test_patient_access.py",
     "backend/tests/test_property_invariants.py",
     "backend/tests/test_semantic_contracts.py",
     "backend/tests/test_safety_meaning_contracts.py",
+    "backend/tests/test_streaming_capture.py",
+    "backend/tests/test_telemetry_privacy.py",
+    "backend/tests/test_tenant_defense.py",
+    "backend/tests/test_terminology_confirmation.py",
     "frontend/src/accessibility.test.tsx",
     "frontend/src/components/ReviewCopilot.tsx",
     "scripts/security_evidence.py",
@@ -81,16 +91,17 @@ SECRET_PATTERNS = {
 }
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 EXPECTED_MUTATION_COUNTS = {
-    "audit": 196,
-    "care": 248,
-    "conflicts": 176,
+    "audit": 209,
+    "care": 439,
+    "conflicts": 391,
     "evaluation": 228,
-    "importance": 738,
+    "importance": 732,
     "provenance": 105,
     "redaction": 137,
     "review": 261,
 }
 EXPECTED_MUTATION_TOTAL = sum(EXPECTED_MUTATION_COUNTS.values())
+EXPECTED_BROWSER_TESTS = 13
 
 
 def parse_args() -> argparse.Namespace:
@@ -230,7 +241,7 @@ def main() -> None:
     browser_evidence_path = ROOT / "output" / "evidence" / "browser_e2e.json"
     if args.require_browser_evidence or browser_evidence_path.exists():
         evidence_checks["browser_e2e.json"] = lambda payload: (
-            payload["stats"]["expected"] == 7
+            payload["stats"]["expected"] == EXPECTED_BROWSER_TESTS
             and payload["stats"]["unexpected"] == 0
             and payload["stats"]["flaky"] == 0
             and payload["stats"]["skipped"] == 0

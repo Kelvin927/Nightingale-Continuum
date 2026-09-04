@@ -13,14 +13,20 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "output" / "evidence"
 
 
-def run_json(command: list[str], *, cwd: Path) -> tuple[int, dict]:
-    result = subprocess.run(  # noqa: S603 - callers provide fixed release commands
-        command,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def run_json(command: list[str], *, cwd: Path, timeout_seconds: float = 300.0) -> tuple[int, dict]:
+    try:
+        result = subprocess.run(  # noqa: S603 - callers provide fixed release commands
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"{Path(command[0]).name} exceeded the {timeout_seconds:g}-second audit deadline"
+        ) from exc
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
@@ -140,4 +146,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except RuntimeError as exc:
+        raise SystemExit(f"Security evidence failed: {exc}") from exc

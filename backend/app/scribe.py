@@ -255,7 +255,7 @@ def ingest_scribe(
         change_reason="Generated from a redacted synthetic interaction",
     )
     if draft.confidence >= 0.6:
-        generate_highlights_for_entry(session, entry=entry, actor_role=initiating_actor.role)
+        generate_highlights_for_entry(session, entry=entry)
     append_audit(
         session,
         clinic_id=patient.clinic_id,

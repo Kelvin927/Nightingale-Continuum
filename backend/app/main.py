@@ -680,7 +680,7 @@ def create_app(
             trust_state="human_authored" if actor.role != "clinician" else "clinician_confirmed",
             request_id=x_request_id,
         )
-        generate_highlights_for_entry(session, entry=entry, actor_role=actor.role)
+        generate_highlights_for_entry(session, entry=entry)
         detect_structured_conflicts(session, entry)
         if actor.role != "patient":
             _refresh_projection(session, patient)
@@ -709,7 +709,7 @@ def create_app(
         except VersionConflictError as exc:
             session.rollback()
             raise _conflict_response(exc) from exc
-        generate_highlights_for_entry(session, entry=entry, actor_role=actor.role)
+        generate_highlights_for_entry(session, entry=entry)
         detect_structured_conflicts(session, entry)
         patient = require_patient(session, actor, entry.patient_id)
         if actor.role != "patient":
@@ -785,7 +785,7 @@ def create_app(
         except ValueError as exc:
             session.rollback()
             raise HTTPException(status_code=404, detail="Target version not found") from exc
-        generate_highlights_for_entry(session, entry=entry, actor_role=actor.role)
+        generate_highlights_for_entry(session, entry=entry)
         detect_structured_conflicts(session, entry)
         patient = require_patient(session, actor, entry.patient_id)
         if actor.role != "patient":

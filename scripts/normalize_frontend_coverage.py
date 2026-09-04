@@ -16,9 +16,15 @@ WINDOWS_ABSOLUTE = re.compile(r"^[A-Za-z]:[/\\]")
 def portable_path(value: str) -> str:
     """Reduce an absolute coverage path to its stable repository-relative suffix."""
     normalized = value.replace("\\", "/")
-    marker = "/frontend/"
-    if marker in normalized and (normalized.startswith("/") or WINDOWS_ABSOLUTE.match(value)):
-        return f"frontend/{normalized.split(marker, maxsplit=1)[1]}"
+    is_absolute = normalized.startswith("/") or WINDOWS_ABSOLUTE.match(value)
+    if not is_absolute:
+        return value
+    frontend_marker = "/frontend/"
+    if frontend_marker in normalized:
+        return f"frontend/{normalized.split(frontend_marker, maxsplit=1)[1]}"
+    source_marker = "/src/"
+    if source_marker in normalized:
+        return f"frontend/src/{normalized.split(source_marker, maxsplit=1)[1]}"
     return value
 
 
