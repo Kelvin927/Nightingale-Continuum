@@ -109,7 +109,13 @@ function configureSuccessApi() {
   mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
   mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.provenance.mockResolvedValue(provenance);
-  mockedApi.feedback.mockResolvedValue({ status: "accepted", adaptive_score: 0.1, rank_score: 8.5 });
+  mockedApi.feedback.mockResolvedValue({
+    status: "accepted",
+    adaptive_score: 0,
+    shadow_adaptive_score: 0.1,
+    rank_score: 8.4,
+    ranking_mode: "fixed_safety_with_shadow_learning",
+  });
   mockedApi.createEntry.mockResolvedValue({});
   mockedApi.editEntry.mockResolvedValue({});
   mockedApi.versions.mockResolvedValue({

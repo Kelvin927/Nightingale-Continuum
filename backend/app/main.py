@@ -52,6 +52,7 @@ from .delivery import (
 from .delta import build_delta_lens
 from .evaluation import evaluate_shadow_policy
 from .importance import (
+    adaptive_score,
     build_glance_projection,
     generate_highlights_for_entry,
     record_feedback,
@@ -935,7 +936,14 @@ def create_app(
             "status": highlight.status,
             "base_score": highlight.base_score,
             "adaptive_score": highlight.adaptive_score,
+            "shadow_adaptive_score": adaptive_score(
+                session,
+                clinic_id=actor.clinic_id,
+                actor_role="all",
+                features=highlight.entity_tags,
+            ),
             "rank_score": highlight.rank_score,
+            "ranking_mode": "fixed_safety_with_shadow_learning",
             "projection_revision": projection.source_revision,
         }
 

@@ -190,7 +190,7 @@ class Highlight(Base):
     risk_level: Mapped[str] = mapped_column(String(16), nullable=False)
     risk_reason: Mapped[str] = mapped_column(String(280), nullable=False)
     entity_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence_support: Mapped[float] = mapped_column("confidence", Float, nullable=False)
     trust_state: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="suggested")
     base_score: Mapped[float] = mapped_column(Float, nullable=False)

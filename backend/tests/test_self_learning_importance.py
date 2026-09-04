@@ -7,7 +7,7 @@ from app.models import Highlight
 from .conftest import auth
 
 
-def test_pinning_ai_highlight_increases_priority_for_similar_content(
+def test_pinning_ai_highlight_updates_shadow_policy_without_changing_live_priority(
     client, app, identities, patient_id
 ):
     with app.state.database.session() as session:
@@ -40,14 +40,16 @@ def test_pinning_ai_highlight_increases_priority_for_similar_content(
         json={"action": "pin", "display_propensity": 0.5},
     )
     assert response.status_code == 200, response.text
+    assert response.json()["shadow_adaptive_score"] > 0
+    assert response.json()["ranking_mode"] == "fixed_safety_with_shadow_learning"
 
     with app.state.database.session() as session:
         learned_target = session.get(Highlight, target_id)
         pinned_source = session.get(Highlight, source_id)
         assert learned_target is not None
         assert pinned_source is not None
-        assert learned_target.rank_score > baseline_target
-        assert 0 < learned_target.adaptive_score <= 0.75
+        assert learned_target.rank_score == baseline_target
+        assert learned_target.adaptive_score == 0.0
         assert pinned_source.status == "pinned"
 
 
@@ -65,10 +67,10 @@ def test_learning_cannot_displace_critical_safety_band(client, app, identities, 
         headers=auth(identities["clinician"]),
     ).json()
     assert glance["groups"]["act_now"][0]["id"] == critical_id
-    assert "outrank learned adjustments" in glance["safety_rule"]
+    assert "feedback remains shadow-only" in glance["safety_rule"]
 
 
-def test_rejection_decreases_similar_priority_without_hiding_critical_safety(
+def test_rejection_updates_shadow_policy_without_hiding_or_reordering_live_safety(
     client, app, identities, patient_id
 ):
     with app.state.database.session() as session:
@@ -97,14 +99,15 @@ def test_rejection_decreases_similar_priority_without_hiding_critical_safety(
         json={"action": "reject", "display_propensity": 0.5},
     )
     assert response.status_code == 200, response.text
+    assert response.json()["shadow_adaptive_score"] < 0
 
     with app.state.database.session() as session:
         learned_target = session.get(Highlight, similar_target_id)
         rejected_source = session.get(Highlight, rejected_source_id)
         assert learned_target is not None
         assert rejected_source is not None
-        assert learned_target.rank_score < baseline_target
-        assert -0.75 <= learned_target.adaptive_score < 0
+        assert learned_target.rank_score == baseline_target
+        assert learned_target.adaptive_score == 0.0
         assert rejected_source.status == "rejected"
 
     glance = client.get(

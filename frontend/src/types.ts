@@ -127,13 +127,15 @@ export interface HighlightItem {
   risk_level: "critical" | "high" | "medium" | "low";
   risk_reason: string;
   entity_tags: string[];
-  confidence: number;
-  confidence_band?: "low" | "medium" | "high";
-  confidence_interpretation?: string;
+  evidence_support: number;
+  evidence_support_band?: "low" | "medium" | "high";
+  evidence_support_interpretation?: string;
   trust_state: string;
   status: string;
   rank_score: number;
   score_factors: Record<string, number>;
+  shadow_score_factors: { bounded_feedback: number };
+  ranking_mode: "fixed_safety_with_shadow_learning";
   provenance_span_id: string;
   policy_version: string;
 }
@@ -255,9 +257,9 @@ export interface ReviewClaim {
   risk_level: "critical" | "high" | "medium" | "low";
   risk_reason: string;
   trust_state: string;
-  confidence: number;
-  confidence_band?: "low" | "medium" | "high";
-  confidence_interpretation?: string;
+  evidence_support: number;
+  evidence_support_band?: "low" | "medium" | "high";
+  evidence_support_interpretation?: string;
   provenance_span_id: string;
   source_entry_id: string;
   quote: string;

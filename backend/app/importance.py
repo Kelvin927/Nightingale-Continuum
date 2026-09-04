@@ -194,6 +194,7 @@ def generate_highlights_for_entry(
     entry: Entry,
     actor_role: str = "clinician",
 ) -> list[Highlight]:
+    del actor_role
     version = current_version(session, entry)
     highlights: list[Highlight] = []
     for match in SENTENCE_PATTERN.finditer(version.content):
@@ -231,12 +232,9 @@ def generate_highlights_for_entry(
             tags=tags,
             created_at=entry.created_at,
         )
-        learned = adaptive_score(
-            session,
-            clinic_id=entry.clinic_id,
-            actor_role=actor_role,
-            features=tags,
-        )
+        # Feedback updates the shadow policy only. Live ordering remains fixed
+        # until an independently evaluated policy revision is promoted.
+        learned = 0.0
         highlight = Highlight(
             clinic_id=entry.clinic_id,
             patient_id=entry.patient_id,
@@ -245,7 +243,7 @@ def generate_highlights_for_entry(
             risk_level=risk_level,
             risk_reason=reason,
             entity_tags=tags,
-            confidence=evidence_support_score(entry.trust_state),
+            evidence_support=evidence_support_score(entry.trust_state),
             trust_state=entry.trust_state,
             status="suggested" if entry.owner_role == "system" else "accepted",
             base_score=score,
@@ -329,15 +327,12 @@ def record_feedback(
 
 
 def refresh_adaptive_scores(session: Session, clinic_id: str, actor_role: str) -> None:
+    """Keep live rank fixed while retaining posterior evidence for shadow evaluation."""
+
+    del actor_role
     for highlight in session.scalars(select(Highlight).where(Highlight.clinic_id == clinic_id)):
-        learned = adaptive_score(
-            session,
-            clinic_id=clinic_id,
-            actor_role=actor_role,
-            features=highlight.entity_tags,
-        )
-        highlight.adaptive_score = learned
-        highlight.rank_score = round(highlight.base_score + learned, 4)
+        highlight.adaptive_score = 0.0
+        highlight.rank_score = round(highlight.base_score, 4)
 
 
 def _rank_key(highlight: Highlight) -> tuple[int, int, float, datetime]:
@@ -378,6 +373,12 @@ def build_glance_projection(session: Session, patient_id: str) -> dict:
     grouped = {"act_now": [], "watch": [], "awaiting": []}
     for item in highlights:
         bucket = "act_now" if item.risk_level in {"critical", "high"} else "watch"
+        shadow_feedback = adaptive_score(
+            session,
+            clinic_id=item.clinic_id,
+            actor_role="all",
+            features=item.entity_tags,
+        )
         grouped[bucket].append(
             {
                 "id": item.id,
@@ -385,16 +386,18 @@ def build_glance_projection(session: Session, patient_id: str) -> dict:
                 "risk_level": item.risk_level,
                 "risk_reason": item.risk_reason,
                 "entity_tags": item.entity_tags,
-                "confidence": item.confidence,
-                "confidence_band": evidence_support_band(item.confidence),
-                "confidence_interpretation": (
+                "evidence_support": item.evidence_support,
+                "evidence_support_band": evidence_support_band(item.evidence_support),
+                "evidence_support_interpretation": (
                     "Policy-defined evidence support; not a calibrated probability of "
                     "clinical correctness."
                 ),
                 "trust_state": item.trust_state,
                 "status": item.status,
                 "rank_score": item.rank_score,
-                "score_factors": {**item.score_factors, "adaptive": item.adaptive_score},
+                "score_factors": item.score_factors,
+                "shadow_score_factors": {"bounded_feedback": shadow_feedback},
+                "ranking_mode": "fixed_safety_with_shadow_learning",
                 "provenance_span_id": item.provenance_span_id,
                 "policy_version": item.policy_version,
             }
@@ -416,6 +419,7 @@ def build_glance_projection(session: Session, patient_id: str) -> dict:
         "generated_at": datetime.now(UTC).isoformat(),
         "policy_version": POLICY_VERSION,
         "safety_rule": (
-            "Critical risks and medication/allergy safety items outrank learned adjustments."
+            "Live order is deterministic; feedback remains shadow-only, and critical safety "
+            "items retain immutable floors."
         ),
     }

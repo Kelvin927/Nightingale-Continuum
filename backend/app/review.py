@@ -27,9 +27,9 @@ class ReviewClaim:
     risk_level: str
     risk_reason: str
     trust_state: str
-    confidence: float
-    confidence_band: str
-    confidence_interpretation: str
+    evidence_support: float
+    evidence_support_band: str
+    evidence_support_interpretation: str
     provenance_span_id: str
     source_entry_id: str
     quote: str
@@ -125,9 +125,9 @@ def build_evidence_review(
             risk_level=highlight.risk_level,
             risk_reason=highlight.risk_reason,
             trust_state=highlight.trust_state,
-            confidence=highlight.confidence,
-            confidence_band=evidence_support_band(highlight.confidence),
-            confidence_interpretation=(
+            evidence_support=highlight.evidence_support,
+            evidence_support_band=evidence_support_band(highlight.evidence_support),
+            evidence_support_interpretation=(
                 "Policy-defined evidence support; not a calibrated probability of clinical "
                 "correctness."
             ),

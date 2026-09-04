@@ -6,7 +6,7 @@ import { GlanceBoard } from "./GlanceBoard";
 
 const glance: Glance = {
   patient_mode: false,
-  safety_rule: "Critical risks outrank learned adjustments.",
+  safety_rule: "Live order is deterministic; feedback remains shadow-only.",
   policy_version: "safe-beta-v1",
   groups: {
     act_now: [
@@ -16,11 +16,13 @@ const glance: Glance = {
         risk_level: "high",
         risk_reason: "Medication changes require review",
         entity_tags: ["medication", "dose_change"],
-        confidence: 0.65,
+        evidence_support: 0.65,
         trust_state: "ai_proposed",
         status: "suggested",
         rank_score: 6.4,
-        score_factors: { risk: 5, adaptive: 0.1 },
+        score_factors: { risk: 5 },
+        shadow_score_factors: { bounded_feedback: 0.1 },
+        ranking_mode: "fixed_safety_with_shadow_learning",
         provenance_span_id: "span-1",
         policy_version: "safe-beta-v1",
       },
@@ -49,7 +51,7 @@ test("shows reason, trust state, provenance, and one-action feedback", () => {
   expect(screen.getByText("AI proposed")).toBeInTheDocument();
   expect(screen.getByText("medium support · 65/100")).toBeInTheDocument();
   fireEvent.click(screen.getByText("Why this order"));
-  expect(screen.getByText(/ranking score is not a probability/i)).toBeInTheDocument();
+  expect(screen.getByText(/is evaluated in shadow and is not applied/i)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /exact source/i }));
   expect(onSource).toHaveBeenCalledWith("span-1");
   fireEvent.click(screen.getByRole("button", { name: /pin/i }));
@@ -81,16 +83,16 @@ test("renders every support-band path and the explicit interpretation contract",
           ...source,
           id: "explicit-band",
           title: "Explicit support band",
-          confidence: 0.65,
-          confidence_band: "high",
-          confidence_interpretation: "Reviewer-defined evidence support.",
+          evidence_support: 0.65,
+          evidence_support_band: "high",
+          evidence_support_interpretation: "Reviewer-defined evidence support.",
           status: "accepted",
         },
         {
           ...source,
           id: "low-band",
           title: "Low support fallback",
-          confidence: 0.5,
+          evidence_support: 0.5,
           score_factors: { risk: 5 },
           status: "accepted",
         },
@@ -98,7 +100,7 @@ test("renders every support-band path and the explicit interpretation contract",
           ...source,
           id: "high-band",
           title: "High support fallback",
-          confidence: 0.9,
+          evidence_support: 0.9,
           status: "accepted",
         },
       ],

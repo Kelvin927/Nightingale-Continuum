@@ -74,7 +74,7 @@ def test_generated_highlights_and_source_spans_have_an_exact_persisted_contract(
             medication.risk_level,
             medication.risk_reason,
             medication.entity_tags,
-            medication.confidence,
+            medication.evidence_support,
             medication.trust_state,
             medication.status,
             medication.base_score,
@@ -111,7 +111,7 @@ def test_generated_highlights_and_source_spans_have_an_exact_persisted_contract(
             follow_up.risk_level,
             follow_up.risk_reason,
             follow_up.entity_tags,
-            follow_up.confidence,
+            follow_up.evidence_support,
             follow_up.status,
             follow_up.base_score,
             follow_up.adaptive_score,
@@ -226,9 +226,18 @@ def test_feedback_persists_exact_context_updates_both_posteriors_and_audit(
         assert all(
             (item.alpha, item.beta, item.observations) == (3.0, 2.0, 1) for item in posteriors
         )
-        expected_adaptive = round(0.15 * len(set(highlight.entity_tags)), 4)
-        assert highlight.adaptive_score == expected_adaptive
-        assert highlight.rank_score == round(highlight.base_score + expected_adaptive, 4)
+        expected_shadow = round(0.15 * len(set(highlight.entity_tags)), 4)
+        assert (
+            adaptive_score(
+                session,
+                clinic_id=actor.clinic_id,
+                actor_role="all",
+                features=highlight.entity_tags,
+            )
+            == expected_shadow
+        )
+        assert highlight.adaptive_score == 0.0
+        assert highlight.rank_score == round(highlight.base_score, 4)
         event = session.scalar(
             select(AuditEvent).where(
                 AuditEvent.object_id == highlight.id,
@@ -283,7 +292,8 @@ def test_glance_projection_is_an_exact_bounded_projection_of_ranked_domain_rows(
         assert projection["item_budget"] == 9
         assert projection["policy_version"] == POLICY_VERSION
         assert projection["safety_rule"] == (
-            "Critical risks and medication/allergy safety items outrank learned adjustments."
+            "Live order is deterministic; feedback remains shadow-only, and critical safety "
+            "items retain immutable floors."
         )
         assert datetime.fromisoformat(projection["generated_at"]).tzinfo is not None
         groups = projection["groups"]
@@ -300,13 +310,15 @@ def test_glance_projection_is_an_exact_bounded_projection_of_ranked_domain_rows(
             "risk_level",
             "risk_reason",
             "entity_tags",
-            "confidence",
-            "confidence_band",
-            "confidence_interpretation",
+            "evidence_support",
+            "evidence_support_band",
+            "evidence_support_interpretation",
             "trust_state",
             "status",
             "rank_score",
             "score_factors",
+            "shadow_score_factors",
+            "ranking_mode",
             "provenance_span_id",
             "policy_version",
         }
@@ -318,20 +330,22 @@ def test_glance_projection_is_an_exact_bounded_projection_of_ranked_domain_rows(
                 "risk_level": domain.risk_level,
                 "risk_reason": domain.risk_reason,
                 "entity_tags": domain.entity_tags,
-                "confidence": domain.confidence,
-                "confidence_band": "high"
-                if domain.confidence >= 0.85
+                "evidence_support": domain.evidence_support,
+                "evidence_support_band": "high"
+                if domain.evidence_support >= 0.85
                 else "medium"
-                if domain.confidence >= 0.6
+                if domain.evidence_support >= 0.6
                 else "low",
-                "confidence_interpretation": (
+                "evidence_support_interpretation": (
                     "Policy-defined evidence support; "
                     "not a calibrated probability of clinical correctness."
                 ),
                 "trust_state": domain.trust_state,
                 "status": domain.status,
                 "rank_score": domain.rank_score,
-                "score_factors": {**domain.score_factors, "adaptive": domain.adaptive_score},
+                "score_factors": domain.score_factors,
+                "shadow_score_factors": {"bounded_feedback": 0.0},
+                "ranking_mode": "fixed_safety_with_shadow_learning",
                 "provenance_span_id": domain.provenance_span_id,
                 "policy_version": domain.policy_version,
             }
@@ -541,10 +555,10 @@ def test_highlight_generation_handles_whitespace_learning_reuse_and_span_identit
         )
         generated = generate_highlights_for_entry(session, entry=entry)
         assert len(generated) == 2
-        assert [item.confidence for item in generated] == [0.95, 0.95]
+        assert [item.evidence_support for item in generated] == [0.95, 0.95]
         assert [item.status for item in generated] == ["accepted", "accepted"]
-        assert generated[0].adaptive_score == 0.25
-        assert generated[0].rank_score == round(generated[0].base_score + 0.25, 4)
+        assert generated[0].adaptive_score == 0.0
+        assert generated[0].rank_score == round(generated[0].base_score, 4)
         first_span = session.get(ProvenanceSpan, generated[0].provenance_span_id)
         assert first_span is not None
         assert (first_span.start_offset, first_span.end_offset, first_span.quote) == (
@@ -641,11 +655,6 @@ def test_rank_scores_are_persisted_at_the_documented_four_decimal_precision(
         "base_score",
         lambda *args, **kwargs: (1.23456, {"precision_fixture": True}),
     )
-    monkeypatch.setattr(
-        importance_module,
-        "adaptive_score",
-        lambda *args, **kwargs: 0.00005,
-    )
     with app.state.database.session() as session:
         actor = session.get(User, identities["clinician"])
         patient = session.get(Patient, patient_id)
@@ -669,7 +678,7 @@ def test_rank_scores_are_persisted_at_the_documented_four_decimal_precision(
 
         generated[0].rank_score = 0.0
         refresh_adaptive_scores(session, patient.clinic_id, "clinician")
-        assert generated[0].adaptive_score == 0.00005
+        assert generated[0].adaptive_score == 0.0
         assert generated[0].rank_score == 1.2346
 
 
@@ -744,7 +753,7 @@ def test_ranking_and_glance_are_patient_scoped_bounded_ordered_and_grouped(
                     risk_level=risk,
                     risk_reason="Exact ranking fixture",
                     entity_tags=["medication"] if risk == "high" else ["follow_up"],
-                    confidence=0.98,
+                    evidence_support=0.98,
                     trust_state="clinician_confirmed",
                     status="accepted",
                     base_score=5.0,

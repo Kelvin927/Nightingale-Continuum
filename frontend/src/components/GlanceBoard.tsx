@@ -34,9 +34,9 @@ function riskLabel(value: string) {
 }
 
 function supportBand(item: HighlightItem) {
-  if (item.confidence_band) return item.confidence_band;
-  if (item.confidence < 0.6) return "low";
-  if (item.confidence < 0.85) return "medium";
+  if (item.evidence_support_band) return item.evidence_support_band;
+  if (item.evidence_support < 0.6) return "low";
+  if (item.evidence_support < 0.85) return "medium";
   return "high";
 }
 
@@ -68,8 +68,7 @@ function HighlightCard({
 
   const canTrain = role === "clinician" || role === "staff";
   const needsReview = item.trust_state === "ai_proposed" && item.status === "suggested";
-  const adaptiveScore = item.score_factors.adaptive ?? 0;
-  const fixedScore = item.rank_score - adaptiveScore;
+  const shadowFeedback = item.shadow_score_factors?.bounded_feedback ?? 0;
   const band = supportBand(item);
   return (
     <article className={`glance-card risk-${item.risk_level}`}>
@@ -93,15 +92,15 @@ function HighlightCard({
         </button>
         <span
           className={`confidence confidence-${band}`}
-          title={item.confidence_interpretation ?? "Policy-defined evidence support; not a correctness probability."}
+          title={item.evidence_support_interpretation ?? "Policy-defined evidence support; not a correctness probability."}
         >
-          {band} support · {Math.round(item.confidence * 100)}/100
+          {band} support · {Math.round(item.evidence_support * 100)}/100
         </span>
       </div>
       <details className="score-explainer">
         <summary>Why this order</summary>
         <p>
-          Rank {item.rank_score.toFixed(2)} = fixed {fixedScore.toFixed(2)} + bounded feedback {adaptiveScore.toFixed(2)}. Ranking score is not a probability.
+          Live rank {item.rank_score.toFixed(2)} is fixed by policy. Bounded feedback {shadowFeedback.toFixed(2)} is evaluated in shadow and is not applied. Neither score is a probability.
         </p>
       </details>
       {canTrain && needsReview && (

@@ -159,7 +159,13 @@ beforeEach(() => {
   mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
   mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.provenance.mockResolvedValue(provenance);
-  mockedApi.feedback.mockResolvedValue({ status: "rejected", adaptive_score: 0, rank_score: 8 });
+  mockedApi.feedback.mockResolvedValue({
+    status: "rejected",
+    adaptive_score: 0,
+    shadow_adaptive_score: -0.1,
+    rank_score: 8,
+    ranking_mode: "fixed_safety_with_shadow_learning",
+  });
   mockedApi.versions.mockResolvedValue({
     entry_id: "entry-clinician",
     current_version: 1,

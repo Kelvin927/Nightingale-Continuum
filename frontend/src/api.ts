@@ -114,7 +114,13 @@ export const api = {
     highlightId: string,
     action: "accept" | "reject" | "pin",
   ) =>
-    request<{ status: string; adaptive_score: number; rank_score: number }>(
+    request<{
+      status: string;
+      adaptive_score: number;
+      shadow_adaptive_score: number;
+      rank_score: number;
+      ranking_mode: "fixed_safety_with_shadow_learning";
+    }>(
       `/api/v1/highlights/${highlightId}/feedback`,
       userId,
       {

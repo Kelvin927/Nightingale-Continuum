@@ -173,7 +173,7 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 risk_level="critical",
                 risk_reason="Deliberate tenant-isolation fixture",
                 entity_tags=["medication"],
-                confidence=1.0,
+                evidence_support=1.0,
                 trust_state="clinician_confirmed",
                 status="accepted",
                 base_score=rank,
@@ -366,7 +366,7 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 claim.risk_level,
                 claim.risk_reason,
                 claim.trust_state,
-                claim.confidence,
+                claim.evidence_support,
                 claim.quote,
             )
             for claim in overview.claims
@@ -405,13 +405,13 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
                 "Patient reports dizziness since the lisinopril dose changed from 10 mg to 20 mg.",
             ),
         ]
-        assert [claim.confidence_band for claim in overview.claims] == [
+        assert [claim.evidence_support_band for claim in overview.claims] == [
             "high",
             "high",
             "high",
             "medium",
         ]
-        assert {claim.confidence_interpretation for claim in overview.claims} == {
+        assert {claim.evidence_support_interpretation for claim in overview.claims} == {
             "Policy-defined evidence support; not a calibrated probability of clinical correctness."
         }
         assert all(claim.provenance_span_id and claim.source_entry_id for claim in overview.claims)
