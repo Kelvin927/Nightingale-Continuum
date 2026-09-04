@@ -28,6 +28,12 @@ from .care import (
 from .conflicts import detect_structured_conflicts
 from .constants import DETERMINISTIC_DISPLAY_PROPENSITY
 from .database import Database, sqlite_version
+from .delivery import (
+    DeliveryPolicyError,
+    delivery_snapshot,
+    queue_delivery,
+    transition_delivery,
+)
 from .delta import build_delta_lens
 from .evaluation import evaluate_shadow_policy
 from .importance import (
@@ -44,6 +50,7 @@ from .models import (
     EntryVersion,
     GlanceProjection,
     Highlight,
+    OutboundDelivery,
     Patient,
     ProvenanceSpan,
     User,
@@ -70,9 +77,12 @@ from .schemas import (
     CreateCommentRequest,
     CreateEntryRequest,
     CreateThreadRequest,
+    DeliveryTransitionRequest,
     EditEntryRequest,
     EvidenceReviewRequest,
     FeedbackRequest,
+    QueueCorrectionRequest,
+    QueueDeliveryRequest,
     ResolveThreadRequest,
     RetentionRunRequest,
     RevertEntryRequest,
@@ -233,6 +243,13 @@ def _conflict_response(exc: VersionConflictError) -> HTTPException:
             "current_version_id": exc.current_version_id,
             "resolution": "Reload the current version, compare, and resubmit intentionally.",
         },
+    )
+
+
+def _delivery_error(exc: DeliveryPolicyError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": exc.code, "message": exc.message},
     )
 
 
@@ -475,6 +492,15 @@ def create_app(
         patient = require_patient(session, actor, patient_id)
         return build_delta_lens(session, patient.id)
 
+    @app.get(f"{API_PREFIX}/patients/{{patient_id}}/delivery-readiness")
+    def patient_delivery_readiness(
+        patient_id: str,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        patient = require_patient(session, actor, patient_id)
+        return delivery_snapshot(session, patient)
+
     @app.post(f"{API_PREFIX}/patients/{{patient_id}}/entries", status_code=201)
     def add_entry(
         patient_id: str,
@@ -689,6 +715,97 @@ def create_app(
         _refresh_projection(session, patient)
         session.commit()
         return {"id": comment.id, "thread_id": thread.id}
+
+    @app.post(f"{API_PREFIX}/entries/{{entry_id}}/deliveries", status_code=201)
+    def create_delivery(
+        entry_id: str,
+        payload: QueueDeliveryRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        if actor.role != "clinician":
+            raise forbidden("clinician_delivery_approval_required")
+        entry = require_entry_read(session, actor, entry_id)
+        patient = require_patient(session, actor, entry.patient_id)
+        try:
+            queue_delivery(
+                session,
+                actor=actor,
+                patient=patient,
+                entry=entry,
+                contact_id=payload.contact_id,
+                expected_version=payload.expected_version,
+                idempotency_key=payload.idempotency_key,
+                confirm_clinical_review=payload.confirm_clinical_review,
+                confirm_patient_identity=payload.confirm_patient_identity,
+                confirm_medication_and_dose=payload.confirm_medication_and_dose,
+            )
+        except DeliveryPolicyError as exc:
+            session.rollback()
+            raise _delivery_error(exc) from exc
+        session.commit()
+        return delivery_snapshot(session, patient)
+
+    @app.post(f"{API_PREFIX}/deliveries/{{delivery_id}}/transition")
+    def record_delivery_transition(
+        delivery_id: str,
+        payload: DeliveryTransitionRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        require_admin(actor)
+        delivery = session.get(OutboundDelivery, delivery_id)
+        if delivery is None:
+            raise conceal()
+        patient = require_patient(session, actor, delivery.patient_id)
+        try:
+            transition_delivery(
+                session,
+                actor=actor,
+                delivery=delivery,
+                outcome=payload.outcome,
+                provider_message_id=payload.provider_message_id,
+                failure_code=payload.failure_code,
+            )
+        except DeliveryPolicyError as exc:
+            session.rollback()
+            raise _delivery_error(exc) from exc
+        session.commit()
+        return delivery_snapshot(session, patient)
+
+    @app.post(f"{API_PREFIX}/deliveries/{{delivery_id}}/corrections", status_code=201)
+    def create_delivery_correction(
+        delivery_id: str,
+        payload: QueueCorrectionRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        if actor.role != "clinician":
+            raise forbidden("clinician_delivery_approval_required")
+        original = session.get(OutboundDelivery, delivery_id)
+        if original is None:
+            raise conceal()
+        patient = require_patient(session, actor, original.patient_id)
+        replacement = require_entry_read(session, actor, payload.replacement_entry_id)
+        try:
+            queue_delivery(
+                session,
+                actor=actor,
+                patient=patient,
+                entry=replacement,
+                contact_id=payload.contact_id,
+                expected_version=payload.expected_version,
+                idempotency_key=payload.idempotency_key,
+                confirm_clinical_review=payload.confirm_clinical_review,
+                confirm_patient_identity=payload.confirm_patient_identity,
+                confirm_medication_and_dose=payload.confirm_medication_and_dose,
+                correction_for=original,
+            )
+        except DeliveryPolicyError as exc:
+            session.rollback()
+            raise _delivery_error(exc) from exc
+        session.commit()
+        return delivery_snapshot(session, patient)
 
     @app.post(f"{API_PREFIX}/comment-threads/{{thread_id}}/resolve")
     def resolve_thread(

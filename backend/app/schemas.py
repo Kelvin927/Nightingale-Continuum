@@ -66,3 +66,22 @@ class EvidenceReviewRequest(BaseModel):
 
 class RetentionRunRequest(BaseModel):
     as_of: str | None = None
+
+
+class QueueDeliveryRequest(BaseModel):
+    contact_id: str = Field(min_length=3, max_length=64)
+    expected_version: int = Field(ge=1)
+    idempotency_key: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,79}$")
+    confirm_clinical_review: bool
+    confirm_patient_identity: bool
+    confirm_medication_and_dose: bool = False
+
+
+class DeliveryTransitionRequest(BaseModel):
+    outcome: str = Field(pattern="^(queued|accepted|delivered|failed)$")
+    provider_message_id: str | None = Field(default=None, max_length=240)
+    failure_code: str | None = Field(default=None, max_length=80)
+
+
+class QueueCorrectionRequest(QueueDeliveryRequest):
+    replacement_entry_id: str = Field(min_length=3, max_length=64)

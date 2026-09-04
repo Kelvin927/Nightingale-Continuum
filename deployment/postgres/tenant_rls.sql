@@ -140,4 +140,16 @@ CREATE POLICY clinic_isolation ON glance_projections
     USING (clinic_id = app_private.current_clinic_id())
     WITH CHECK (clinic_id = app_private.current_clinic_id());
 
+ALTER TABLE patient_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE patient_contacts FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_isolation ON patient_contacts
+    USING (clinic_id = app_private.current_clinic_id())
+    WITH CHECK (clinic_id = app_private.current_clinic_id());
+
+ALTER TABLE outbound_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outbound_deliveries FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_isolation ON outbound_deliveries
+    USING (clinic_id = app_private.current_clinic_id())
+    WITH CHECK (clinic_id = app_private.current_clinic_id());
+
 COMMIT;

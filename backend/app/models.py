@@ -290,3 +290,63 @@ class GlanceProjection(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     source_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class PatientContact(Base):
+    __tablename__ = "patient_contacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "patient_id",
+            "channel",
+            "routing_reference",
+            name="uq_patient_contact_route",
+        ),
+        Index("ix_patient_contacts_clinic_patient", "clinic_id", "patient_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(24), nullable=False)
+    routing_reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    masked_destination: Mapped[str] = mapped_column(String(80), nullable=False)
+    consent_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unknown")
+    preferred: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class OutboundDelivery(Base):
+    __tablename__ = "outbound_deliveries"
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "idempotency_key", name="uq_delivery_idempotency"),
+        Index("ix_deliveries_patient_created", "patient_id", "created_at"),
+        Index("ix_deliveries_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    source_entry_id: Mapped[str] = mapped_column(ForeignKey("entries.id"), nullable=False)
+    source_version_id: Mapped[str] = mapped_column(ForeignKey("entry_versions.id"), nullable=False)
+    contact_id: Mapped[str] = mapped_column(ForeignKey("patient_contacts.id"), nullable=False)
+    correction_for_id: Mapped[str | None] = mapped_column(
+        ForeignKey("outbound_deliveries.id"), nullable=True
+    )
+    channel: Mapped[str] = mapped_column(String(24), nullable=False)
+    masked_destination: Mapped[str] = mapped_column(String(80), nullable=False)
+    content_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued")
+    idempotency_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    provider_message_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    approval_evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    approved_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

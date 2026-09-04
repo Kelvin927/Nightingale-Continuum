@@ -17,6 +17,7 @@ from .models import (
     Conflict,
     GlanceProjection,
     Patient,
+    PatientContact,
     User,
 )
 
@@ -24,6 +25,7 @@ PRIMARY_CLINIC_ID = "clinic-northstar"
 OTHER_CLINIC_ID = "clinic-riverside"
 PRIMARY_PATIENT_ID = "patient-maya-chen"
 OTHER_PATIENT_ID = "patient-alex-rivera"
+PRIMARY_CONTACT_ID = "contact-maya-whatsapp"
 
 DEMO_USERS = {
     "clinician": "user-clinician-lina",
@@ -39,8 +41,32 @@ def _dt(value: str) -> datetime:
     return datetime.fromisoformat(value).replace(tzinfo=UTC)
 
 
+def _ensure_demo_contact(session: Session) -> None:
+    if session.get(PatientContact, PRIMARY_CONTACT_ID) is not None:
+        return
+    if session.get(Patient, PRIMARY_PATIENT_ID) is None:
+        return
+    session.add(
+        PatientContact(
+            id=PRIMARY_CONTACT_ID,
+            clinic_id=PRIMARY_CLINIC_ID,
+            patient_id=PRIMARY_PATIENT_ID,
+            channel="whatsapp",
+            routing_reference="vault://synthetic/contact-maya-whatsapp",
+            masked_destination="WhatsApp ending 4567",
+            consent_status="granted",
+            preferred=True,
+            active=True,
+            verified_at=_dt("2026-02-06T08:30:00"),
+            created_at=_dt("2026-02-06T08:30:00"),
+        )
+    )
+
+
 def seed_database(session: Session) -> None:
     if session.scalar(select(Clinic.id).limit(1)) is not None:
+        _ensure_demo_contact(session)
+        session.commit()
         return
 
     northstar = Clinic(id=PRIMARY_CLINIC_ID, name="Northstar Family Medicine")
@@ -68,6 +94,8 @@ def seed_database(session: Session) -> None:
         synthetic=True,
     )
     session.add_all([maya, alex])
+    session.flush()
+    _ensure_demo_contact(session)
 
     users = {
         "clinician": User(
