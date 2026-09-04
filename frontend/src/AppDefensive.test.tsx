@@ -87,6 +87,10 @@ vi.mock("./api", () => ({
     workspace: vi.fn(),
     glance: vi.fn(),
     delta: vi.fn(),
+    deliveryReadiness: vi.fn(),
+    queueDelivery: vi.fn(),
+    queueCorrection: vi.fn(),
+    transitionDelivery: vi.fn(),
     provenance: vi.fn(),
     feedback: vi.fn(),
     createEntry: vi.fn(),
@@ -107,6 +111,7 @@ import App from "./App";
 import { api } from "./api";
 import {
   delta,
+  deliveryReadiness,
   glance,
   identities,
   patient,
@@ -149,6 +154,10 @@ beforeEach(() => {
   mockedApi.workspace.mockResolvedValue(workspace);
   mockedApi.glance.mockResolvedValue(glance);
   mockedApi.delta.mockResolvedValue(delta);
+  mockedApi.deliveryReadiness.mockResolvedValue(deliveryReadiness);
+  mockedApi.queueDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
+  mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.provenance.mockResolvedValue(provenance);
   mockedApi.feedback.mockResolvedValue({ status: "rejected", adaptive_score: 0, rank_score: 8 });
   mockedApi.versions.mockResolvedValue({

@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   AuditVerification,
   DeltaLens,
+  DeliveryReadiness,
   EvidenceReview,
   Glance,
   Identity,
@@ -50,6 +51,59 @@ export const api = {
     request<Glance>(`/api/v1/patients/${patientId}/glance`, userId),
   delta: (userId: string, patientId: string) =>
     request<DeltaLens>(`/api/v1/patients/${patientId}/delta`, userId),
+  deliveryReadiness: (userId: string, patientId: string) =>
+    request<DeliveryReadiness>(
+      `/api/v1/patients/${patientId}/delivery-readiness`,
+      userId,
+    ),
+  queueDelivery: (
+    userId: string,
+    entryId: string,
+    payload: {
+      contact_id: string;
+      expected_version: number;
+      idempotency_key: string;
+      confirm_clinical_review: boolean;
+      confirm_patient_identity: boolean;
+      confirm_medication_and_dose: boolean;
+    },
+  ) =>
+    request<DeliveryReadiness>(`/api/v1/entries/${entryId}/deliveries`, userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  queueCorrection: (
+    userId: string,
+    deliveryId: string,
+    payload: {
+      replacement_entry_id: string;
+      contact_id: string;
+      expected_version: number;
+      idempotency_key: string;
+      confirm_clinical_review: boolean;
+      confirm_patient_identity: boolean;
+      confirm_medication_and_dose: boolean;
+    },
+  ) =>
+    request<DeliveryReadiness>(
+      `/api/v1/deliveries/${deliveryId}/corrections`,
+      userId,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+  transitionDelivery: (
+    userId: string,
+    deliveryId: string,
+    payload: {
+      outcome: "queued" | "accepted" | "delivered" | "failed";
+      provider_message_id?: string;
+      failure_code?: string;
+    },
+  ) =>
+    request<DeliveryReadiness>(
+      `/api/v1/deliveries/${deliveryId}/transition`,
+      userId,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
   provenance: (userId: string, spanId: string) =>
     request<ResolvedProvenance>(`/api/v1/provenance/${spanId}/resolve`, userId),
   feedback: (

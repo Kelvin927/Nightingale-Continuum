@@ -21,6 +21,10 @@ vi.mock("./api", () => {
       workspace: vi.fn(),
       glance: vi.fn(),
       delta: vi.fn(),
+      deliveryReadiness: vi.fn(),
+      queueDelivery: vi.fn(),
+      queueCorrection: vi.fn(),
+      transitionDelivery: vi.fn(),
       provenance: vi.fn(),
       feedback: vi.fn(),
       createEntry: vi.fn(),
@@ -43,11 +47,13 @@ import { ApiError, api } from "./api";
 import {
   auditEvents,
   delta,
+  deliveryReadiness,
   evidenceReview,
   evaluation,
   glance,
   identities,
   patient,
+  patientInstruction,
   patientGlance,
   provenance,
   verification,
@@ -98,6 +104,10 @@ function configureSuccessApi() {
     roleFor(userId) === "patient" ? patientGlance : glance,
   );
   mockedApi.delta.mockResolvedValue(delta);
+  mockedApi.deliveryReadiness.mockResolvedValue(deliveryReadiness);
+  mockedApi.queueDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
+  mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.provenance.mockResolvedValue(provenance);
   mockedApi.feedback.mockResolvedValue({ status: "accepted", adaptive_score: 0.1, rank_score: 8.5 });
   mockedApi.createEntry.mockResolvedValue({});
@@ -195,6 +205,22 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
   ));
   expect(await screen.findByRole("status")).toHaveTextContent("Accept recorded");
 
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  fireEvent.click(screen.getByLabelText(/verified every medication and dose/i));
+  fireEvent.click(screen.getByRole("button", { name: /queue approved copy/i }));
+  await waitFor(() => expect(mockedApi.queueDelivery).toHaveBeenCalledWith(
+    "user-clinician",
+    patientInstruction.id,
+    expect.objectContaining({
+      contact_id: "contact-whatsapp",
+      expected_version: 1,
+      confirm_clinical_review: true,
+      confirm_patient_identity: true,
+      confirm_medication_and_dose: true,
+    }),
+  ));
+
   fireEvent.click(screen.getByRole("button", { name: /add note/i }));
   fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New evidence" } });
   fireEvent.change(screen.getByLabelText("Note content"), { target: { value: "A reviewed clinical update." } });
@@ -210,7 +236,8 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
     },
   ));
 
-  fireEvent.click(screen.getByRole("button", { name: /edit section/i }));
+  const clinicalCard = screen.getByRole("article", { name: /assessment and plan/i });
+  fireEvent.click(within(clinicalCard).getByRole("button", { name: /edit section/i }));
   fireEvent.change(screen.getByLabelText("Note content"), { target: { value: "Corrected immutable content." } });
   fireEvent.click(screen.getByRole("button", { name: /save version/i }));
   await waitFor(() => expect(mockedApi.editEntry).toHaveBeenCalledWith(
@@ -219,7 +246,6 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
     expect.objectContaining({ content: "Corrected immutable content.", expected_version: 1 }),
   ));
 
-  const clinicalCard = screen.getByRole("article", { name: /assessment and plan/i });
   fireEvent.click(within(clinicalCard).getByRole("button", { name: /1 thread/i }));
   fireEvent.click(within(clinicalCard).getByRole("button", { name: /start another thread/i }));
   fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please verify today." } });

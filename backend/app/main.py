@@ -499,7 +499,7 @@ def create_app(
         actor: ActorDep,
     ) -> dict:
         patient = require_patient(session, actor, patient_id)
-        return delivery_snapshot(session, patient)
+        return delivery_snapshot(session, patient, include_internal=actor.role != "patient")
 
     @app.post(f"{API_PREFIX}/patients/{{patient_id}}/entries", status_code=201)
     def add_entry(

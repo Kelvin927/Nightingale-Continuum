@@ -59,9 +59,31 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   await api.auditVerification("user-1");
   await api.auditEvents("user-1");
   await api.runRetention("user-1");
+  await api.deliveryReadiness("user-1", "patient-1");
+  await api.queueDelivery("user-1", "entry-1", {
+    contact_id: "contact-1",
+    expected_version: 2,
+    idempotency_key: "delivery-entry-1-v2",
+    confirm_clinical_review: true,
+    confirm_patient_identity: true,
+    confirm_medication_and_dose: true,
+  });
+  await api.queueCorrection("user-1", "delivery-1", {
+    replacement_entry_id: "entry-1",
+    contact_id: "contact-1",
+    expected_version: 3,
+    idempotency_key: "correction-delivery-1-v3",
+    confirm_clinical_review: true,
+    confirm_patient_identity: true,
+    confirm_medication_and_dose: true,
+  });
+  await api.transitionDelivery("user-1", "delivery-1", {
+    outcome: "accepted",
+    provider_message_id: "provider-1",
+  });
 
   const calls = vi.mocked(fetch).mock.calls;
-  expect(calls).toHaveLength(19);
+  expect(calls).toHaveLength(23);
   expect(calls.map(([path]) => path)).toEqual([
     "/api/v1/demo/identities",
     "/api/v1/me",
@@ -82,6 +104,10 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "/api/v1/admin/audit/verify",
     "/api/v1/admin/audit/events?limit=30",
     "/api/v1/admin/retention/run",
+    "/api/v1/patients/patient-1/delivery-readiness",
+    "/api/v1/entries/entry-1/deliveries",
+    "/api/v1/deliveries/delivery-1/corrections",
+    "/api/v1/deliveries/delivery-1/transition",
   ]);
   expect((calls[0][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
   expect((calls[1][1]?.headers as Headers).get("X-Demo-User")).toBe("user-1");
@@ -98,6 +124,12 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     body: JSON.stringify({ patient_id: "patient-1", question: "What changed?" }),
   });
   expect(calls[18][1]?.body).toBe(JSON.stringify({ as_of: "2026-08-26T12:00:00.000Z" }));
+  expect(calls[20][1]).toMatchObject({ method: "POST" });
+  expect(calls[21][1]?.body).toContain('"replacement_entry_id":"entry-1"');
+  expect(calls[22][1]?.body).toBe(JSON.stringify({
+    outcome: "accepted",
+    provider_message_id: "provider-1",
+  }));
 });
 
 test("API errors keep status and support string, object, and invalid JSON details", async () => {

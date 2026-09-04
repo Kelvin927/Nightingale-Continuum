@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   AuditVerification,
   DeltaLens,
+  DeliveryReadiness,
   EvidenceReview,
   Entry,
   EntryVersion,
@@ -114,10 +115,41 @@ export const patientEntry: Entry = {
   comment_threads: undefined,
 };
 
+export const patientInstruction: Entry = {
+  ...clinicianEntry,
+  id: "entry-patient-instruction",
+  entry_type: "patient_instruction",
+  title: "Your medication plan",
+  owner_role: "clinician",
+  author: identities[0],
+  visibility: "patient",
+  trust_state: "clinician_confirmed",
+  comment_threads: [],
+};
+
+export const deliveryReadiness: DeliveryReadiness = {
+  contacts: [
+    {
+      id: "contact-whatsapp",
+      channel: "whatsapp",
+      masked_destination: "WhatsApp ending 4567",
+      consent_status: "granted",
+      preferred: true,
+      active: true,
+      verified: true,
+    },
+  ],
+  deliveries: [],
+  safety_contract: (
+    "Provider acceptance is not patient delivery. Sent snapshots remain immutable; "
+    + "corrections preserve the original side by side."
+  ),
+};
+
 export const workspace: Workspace = {
   patient,
   viewer: { id: identities[0].id, role: "clinician" },
-  entries: [clinicianEntry, aiEntry, patientEntry],
+  entries: [clinicianEntry, aiEntry, patientEntry, patientInstruction],
   conflicts: [
     {
       id: "conflict-1",

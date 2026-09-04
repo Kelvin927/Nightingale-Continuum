@@ -243,7 +243,12 @@ def transition_delivery(
     return delivery
 
 
-def delivery_snapshot(session: Session, patient: Patient) -> dict:
+def delivery_snapshot(
+    session: Session,
+    patient: Patient,
+    *,
+    include_internal: bool = True,
+) -> dict:
     contacts = list(
         session.scalars(
             select(PatientContact)
@@ -299,9 +304,6 @@ def delivery_snapshot(session: Session, patient: Patient) -> dict:
                 "status": item.status,
                 "receipt_meaning": receipt_labels[item.status],
                 "attempt_count": item.attempt_count,
-                "failure_code": item.failure_code,
-                "approved_by": item.approved_by,
-                "approval_evidence": item.approval_evidence,
                 "created_at": item.created_at.isoformat(),
                 "accepted_at": None if item.accepted_at is None else item.accepted_at.isoformat(),
                 "delivered_at": (
@@ -309,6 +311,15 @@ def delivery_snapshot(session: Session, patient: Patient) -> dict:
                 ),
                 "superseded_at": (
                     None if item.superseded_at is None else item.superseded_at.isoformat()
+                ),
+                **(
+                    {
+                        "failure_code": item.failure_code,
+                        "approved_by": item.approved_by,
+                        "approval_evidence": item.approval_evidence,
+                    }
+                    if include_internal
+                    else {}
                 ),
             }
             for item in deliveries

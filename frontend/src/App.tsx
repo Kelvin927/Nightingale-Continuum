@@ -30,6 +30,7 @@ import {
   ScribeDialog,
 } from "./components/Dialogs";
 import { DeltaLens } from "./components/DeltaLens";
+import { DeliveryCenter } from "./components/DeliveryCenter";
 import { GlanceBoard } from "./components/GlanceBoard";
 import { ProvenanceDrawer } from "./components/ProvenanceDrawer";
 import { ReviewCopilotDialog } from "./components/ReviewCopilot";
@@ -38,6 +39,8 @@ import { Timeline } from "./components/Timeline";
 import type {
   AuditEvent,
   AuditVerification,
+  DeliveryItem,
+  DeliveryReadiness,
   DeltaLens as DeltaLensType,
   EvidenceReview,
   Entry,
@@ -87,6 +90,8 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [glance, setGlance] = useState<Glance | null>(null);
   const [delta, setDelta] = useState<DeltaLensType | null>(null);
+  const [delivery, setDelivery] = useState<DeliveryReadiness | null>(null);
+  const [deliveryBusy, setDeliveryBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("care");
@@ -145,14 +150,16 @@ export default function App() {
   }, []);
 
   const loadWorkspace = useCallback(async (activeUser: string, activePatient: string, activeRole: Role) => {
-    const [nextWorkspace, nextGlance, nextDelta] = await Promise.all([
+    const [nextWorkspace, nextGlance, nextDelta, nextDelivery] = await Promise.all([
       api.workspace(activeUser, activePatient),
       api.glance(activeUser, activePatient),
       activeRole === "patient" ? Promise.resolve(null) : api.delta(activeUser, activePatient),
+      api.deliveryReadiness(activeUser, activePatient),
     ]);
     setWorkspace(nextWorkspace);
     setGlance(nextGlance);
     setDelta(nextDelta);
+    setDelivery(nextDelivery);
   }, []);
 
   const reload = useCallback(
@@ -184,6 +191,7 @@ export default function App() {
     setWorkspace(null);
     setGlance(null);
     setDelta(null);
+    setDelivery(null);
     Promise.all([api.me(userId), api.patients(userId)])
       .then(async ([nextViewer, patientPayload]) => {
         if (cancelled) return;
@@ -399,6 +407,79 @@ export default function App() {
     }
   }
 
+  async function queuePatientDelivery(
+    entry: Entry,
+    contactId: string,
+    attestations: { clinical: boolean; identity: boolean; medication: boolean },
+  ) {
+    setDeliveryBusy(true);
+    try {
+      const next = await api.queueDelivery(userId, entry.id, {
+        contact_id: contactId,
+        expected_version: entry.current_version,
+        idempotency_key: `delivery-${entry.id}-v${entry.current_version}-${contactId}`,
+        confirm_clinical_review: attestations.clinical,
+        confirm_patient_identity: attestations.identity,
+        confirm_medication_and_dose: attestations.medication,
+      });
+      setDelivery(next);
+      announce("Approved copy queued. Provider acceptance is still unconfirmed.");
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setDeliveryBusy(false);
+    }
+  }
+
+  async function queuePatientCorrection(
+    original: DeliveryItem,
+    entry: Entry,
+    contactId: string,
+    attestations: { clinical: boolean; identity: boolean; medication: boolean },
+  ) {
+    setDeliveryBusy(true);
+    try {
+      const next = await api.queueCorrection(userId, original.id, {
+        replacement_entry_id: entry.id,
+        contact_id: contactId,
+        expected_version: entry.current_version,
+        idempotency_key: `correction-${original.id}-v${entry.current_version}-${contactId}`,
+        confirm_clinical_review: attestations.clinical,
+        confirm_patient_identity: attestations.identity,
+        confirm_medication_and_dose: attestations.medication,
+      });
+      setDelivery(next);
+      announce("Correction queued as a new immutable, clinician-approved copy.");
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setDeliveryBusy(false);
+    }
+  }
+
+  async function recordSyntheticReceipt(
+    item: DeliveryItem,
+    outcome: "queued" | "accepted" | "delivered" | "failed",
+  ) {
+    setDeliveryBusy(true);
+    try {
+      const next = await api.transitionDelivery(userId, item.id, {
+        outcome,
+        ...(outcome === "accepted"
+          ? { provider_message_id: `synthetic-${item.id}` }
+          : {}),
+      });
+      setDelivery(next);
+      announce(outcome === "accepted"
+        ? "Provider acceptance recorded; patient delivery remains unconfirmed."
+        : "Synthetic patient delivery receipt recorded.");
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setDeliveryBusy(false);
+    }
+  }
+
   if (loading && !workspace) return <AppSkeleton />;
 
   return (
@@ -438,6 +519,22 @@ export default function App() {
             </section>
 
             <GlanceBoard glance={glance} role={currentRole} busyHighlight={busyHighlight} onSource={openSource} onFeedback={sendFeedback} onTaskSource={scrollToEntry} />
+
+            {delivery && (
+              <DeliveryCenter
+                readiness={delivery}
+                role={currentRole}
+                patientFacingEntries={workspace.entries.filter((entry) =>
+                  entry.visibility === "patient"
+                  && entry.owner_role === "clinician"
+                  && entry.trust_state === "clinician_confirmed"
+                  && ["patient_summary", "patient_instruction"].includes(entry.entry_type))}
+                busy={deliveryBusy}
+                onQueue={queuePatientDelivery}
+                onCorrect={queuePatientCorrection}
+                onTransition={recordSyntheticReceipt}
+              />
+            )}
 
             <div className="care-layout">
               <Timeline entries={workspace.entries} role={currentRole} activeSource={activeSource} onHistory={openHistory} onEdit={(entry) => setNoteDialog({ open: true, entry })} onComment={setCommentEntry} />

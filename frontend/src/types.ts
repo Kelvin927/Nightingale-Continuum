@@ -68,6 +68,44 @@ export interface Entry {
   comment_threads?: CommentThread[];
 }
 
+export interface DeliveryContact {
+  id: string;
+  channel: "whatsapp" | "sms" | "voice" | "email";
+  masked_destination: string;
+  consent_status: string;
+  preferred: boolean;
+  active: boolean;
+  verified: boolean;
+}
+
+export interface DeliveryItem {
+  id: string;
+  source_entry_id: string;
+  source_version_id: string;
+  source_is_current: boolean;
+  correction_for_id: string | null;
+  channel: string;
+  masked_destination: string;
+  content_snapshot: string;
+  content_hash: string;
+  status: "queued" | "accepted" | "delivered" | "failed" | "superseded";
+  receipt_meaning: string;
+  attempt_count: number;
+  failure_code?: string | null;
+  approved_by?: string;
+  approval_evidence?: Record<string, boolean>;
+  created_at: string;
+  accepted_at: string | null;
+  delivered_at: string | null;
+  superseded_at: string | null;
+}
+
+export interface DeliveryReadiness {
+  contacts: DeliveryContact[];
+  deliveries: DeliveryItem[];
+  safety_contract: string;
+}
+
 export interface ConflictItem {
   id: string;
   conflict_type: string;

@@ -125,6 +125,13 @@ def test_phone_only_patient_has_no_email_dependency_and_receipts_distinguish_acc
     )
     assert delivered.status_code == 200
     assert delivered.json()["deliveries"][0]["status"] == "delivered"
+    patient_receipt = client.get(
+        f"/api/v1/patients/{patient_id}/delivery-readiness",
+        headers=auth(identities["patient"]),
+    ).json()["deliveries"][0]
+    assert "approved_by" not in patient_receipt
+    assert "approval_evidence" not in patient_receipt
+    assert "failure_code" not in patient_receipt
 
 
 def test_wrong_dose_correction_preserves_original_and_current_versions_side_by_side(
