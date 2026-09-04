@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .constants import CLINICIAN_APPROVED_PATIENT_ENTRY_TYPES, PATIENT_VISIBLE_ENTRY_TYPES
 from .models import CommentThread, Entry, Patient, User
+from .tenancy import bind_tenant
 
 
 def conceal() -> HTTPException:
@@ -31,6 +32,7 @@ def resolve_actor(session: Session, user_id: str | None) -> User:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid demo identity"
         )
+    bind_tenant(session, actor.clinic_id)
     return actor
 
 
