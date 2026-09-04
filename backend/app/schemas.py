@@ -59,6 +59,21 @@ class ScribeIngestRequest(BaseModel):
         return value
 
 
+class RegenerateScribeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    expected_version: int = Field(ge=1)
+    transcript: str = Field(min_length=1, max_length=50_000)
+    source_uri: str = Field(min_length=4, max_length=300)
+
+    @field_validator("source_uri")
+    @classmethod
+    def source_must_be_addressable(cls, value: str) -> str:
+        if "://" not in value:
+            raise ValueError("source_uri must include a URI scheme")
+        return value
+
+
 class StartCaptureRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 

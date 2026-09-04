@@ -445,6 +445,23 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .merge-draft-field small { color: #84918e; font-size: 7px; font-weight: 500; }
 .merge-attestation { display: grid; margin-top: 9px; }
 
+.regeneration-contract { display: flex; align-items: flex-start; gap: 9px; margin-top: 16px; padding: 11px; color: #315f55; background: #e5f1eb; border: 1px solid #cfe2d9; border-radius: 9px; }
+.regeneration-contract svg { flex: 0 0 auto; }
+.regeneration-contract div { display: grid; gap: 3px; }
+.regeneration-contract strong { font: 700 11px Georgia, serif; }
+.regeneration-contract p { margin: 0; color: #5c746e; font-size: 8px; line-height: 1.5; }
+.preservation-receipt { display: grid; gap: 11px; margin-top: 12px; padding: 14px; background: #f4f8f5; border: 1px solid #d7e5dd; border-radius: 10px; }
+.preservation-heading { display: flex; align-items: center; gap: 9px; color: #25624f; }
+.preservation-heading > div { display: grid; gap: 2px; }
+.preservation-heading strong { font: 700 14px Georgia, serif; }
+.preservation-heading span { color: #778a84; font-size: 7px; }
+.preservation-counts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.preservation-counts span { display: grid; gap: 2px; padding: 8px; color: #74857f; background: #fff; border: 1px solid #e0e8e3; border-radius: 7px; font-size: 6.5px; }
+.preservation-counts strong { color: #305a50; font-size: 12px; }
+.preservation-receipt > p { margin: 0; color: #59716a; font-size: 8px; line-height: 1.5; }
+.preservation-receipt > code { overflow-wrap: anywhere; color: #8a9692; font-size: 6.5px; }
+.preservation-receipt > button { justify-self: end; }
+
 .scribe-layout { display: grid; grid-template-columns: 130px 1fr; gap: 16px; margin-top: 18px; }
 .capture-orb { width: 125px; height: 125px; display: grid; place-items: center; align-content: center; gap: 7px; color: #4b7069; background: #e5f0eb; border: 1px solid #cce0d6; border-radius: 50%; box-shadow: inset 0 0 0 8px rgb(255 255 255 / 45%); }
 .capture-orb span { font-size: 8px; font-weight: 800; text-transform: uppercase; }
@@ -641,6 +658,7 @@ button:disabled { cursor: wait; opacity: 0.58; }
   .conflict-actions { grid-template-columns: 1fr; }
   .merge-version-grid { grid-template-columns: 1fr; }
   .merge-version-panel pre { height: 84px; }
+  .preservation-counts { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {

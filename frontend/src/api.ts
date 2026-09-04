@@ -11,6 +11,7 @@ import type {
   Patient,
   PolicyEvaluation,
   ResolvedProvenance,
+  RegenerationResult,
   SafetySignal,
   StreamingCapture,
   Viewer,
@@ -199,6 +200,15 @@ export const api = {
       };
       flags: string[];
     }>("/api/v1/scribe/ingest", userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  regenerateScribe: (
+    userId: string,
+    entryId: string,
+    payload: { expected_version: number; transcript: string; source_uri: string },
+  ) =>
+    request<RegenerationResult>(`/api/v1/entries/${entryId}/regenerate`, userId, {
       method: "POST",
       body: JSON.stringify(payload),
     }),

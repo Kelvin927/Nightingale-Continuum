@@ -7,6 +7,7 @@ import {
   History,
   MessageSquareText,
   PencilLine,
+  RefreshCw,
   Snowflake,
   UserRound,
 } from "lucide-react";
@@ -23,6 +24,7 @@ interface Props {
   onHistory: (entry: Entry) => void;
   onEdit: (entry: Entry) => void;
   onComment: (entry: Entry) => void;
+  onRegenerate: (entry: Entry) => void;
 }
 
 const entryLabels: Record<string, string> = {
@@ -67,6 +69,7 @@ function EntryCard({
   onHistory,
   onEdit,
   onComment,
+  onRegenerate,
 }: {
   entry: Entry;
   role: Role;
@@ -74,6 +77,7 @@ function EntryCard({
   onHistory: (entry: Entry) => void;
   onEdit: (entry: Entry) => void;
   onComment: (entry: Entry) => void;
+  onRegenerate: (entry: Entry) => void;
 }) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const isAi = entry.entry_type.startsWith("ai_");
@@ -117,6 +121,9 @@ function EntryCard({
         <div className="entry-actions">
           <button onClick={() => onHistory(entry)}><History size={14} /> Version {entry.current_version}</button>
           {canEdit && <button onClick={() => onEdit(entry)}><PencilLine size={14} /> Edit section</button>}
+          {isAi && ["staff", "clinician"].includes(role) && (
+            <button onClick={() => onRegenerate(entry)}><RefreshCw size={14} /> Regenerate proposal</button>
+          )}
           {canComment && (
             <button onClick={() => threadCount ? setCommentsOpen((value) => !value) : onComment(entry)}>
               <MessageSquareText size={14} /> {threadCount ? `${threadCount} thread${threadCount === 1 ? "" : "s"}` : "Comment"}
@@ -150,7 +157,7 @@ function EntryCard({
   );
 }
 
-export function Timeline({ entries, role, activeSource, onHistory, onEdit, onComment }: Props) {
+export function Timeline({ entries, role, activeSource, onHistory, onEdit, onComment, onRegenerate }: Props) {
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const visible = useMemo(
     () =>
@@ -193,6 +200,7 @@ export function Timeline({ entries, role, activeSource, onHistory, onEdit, onCom
             onHistory={onHistory}
             onEdit={onEdit}
             onComment={onComment}
+            onRegenerate={onRegenerate}
           />
         ))}
       </div>
@@ -202,4 +210,3 @@ export function Timeline({ entries, role, activeSource, onHistory, onEdit, onCom
     </section>
   );
 }
-

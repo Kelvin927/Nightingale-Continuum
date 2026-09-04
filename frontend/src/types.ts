@@ -105,6 +105,26 @@ export interface VersionConflictDetail {
   resolution: string;
 }
 
+export interface RegenerationResult {
+  entry_id: string;
+  predecessor_entry_id: string;
+  status: "new_ai_proposal_created";
+  provider: string;
+  provider_status: string;
+  provider_failure_code: string | null;
+  flags: string[];
+  preservation_receipt: {
+    unchanged: boolean;
+    protected_state_hash: string;
+    protected_highlight_count: number;
+    completed_task_count: number;
+    resolved_conflict_count: number;
+    released_delivery_count: number;
+    reviewed_signal_count: number;
+    meaning: string;
+  };
+}
+
 export interface DeliveryContact {
   id: string;
   channel: "whatsapp" | "sms" | "voice" | "email";

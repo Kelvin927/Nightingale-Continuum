@@ -35,6 +35,7 @@ import { DeltaLens } from "./components/DeltaLens";
 import { DeliveryCenter } from "./components/DeliveryCenter";
 import { GlanceBoard } from "./components/GlanceBoard";
 import { ProvenanceDrawer } from "./components/ProvenanceDrawer";
+import { RegenerationDialog } from "./components/RegenerationDialog";
 import { ReviewCopilotDialog } from "./components/ReviewCopilot";
 import { ResearchPanel } from "./components/ResearchPanel";
 import { Timeline } from "./components/Timeline";
@@ -52,6 +53,7 @@ import type {
   Identity,
   Patient,
   PolicyEvaluation,
+  RegenerationResult,
   ResolvedProvenance,
   Role,
   StreamingCapture,
@@ -133,6 +135,7 @@ export default function App() {
     entry: Entry;
     detail: VersionConflictDetail;
   } | null>(null);
+  const [regenerationEntry, setRegenerationEntry] = useState<Entry | null>(null);
 
   const selectedIdentity = identities.find((item) => item.id === userId) ?? null;
   const currentPatient = workspace?.patient ?? patients.find((patient) => patient.id === patientId) ?? null;
@@ -210,6 +213,7 @@ export default function App() {
     setActiveSource(null);
     setActiveConflict(null);
     setEditConflict(null);
+    setRegenerationEntry(null);
     setPatientId(null);
     setWorkspace(null);
     setGlance(null);
@@ -371,6 +375,22 @@ export default function App() {
         },
       },
     });
+  }
+
+  async function regenerateProposal(transcript: string): Promise<RegenerationResult> {
+    const active = actionContext.current;
+    const predecessor = regenerationEntry;
+    if (!active.patientId || !predecessor) {
+      throw new Error("No AI proposal is selected for regeneration.");
+    }
+    const result = await api.regenerateScribe(active.userId, predecessor.id, {
+      expected_version: predecessor.current_version,
+      transcript,
+      source_uri: `regeneration://synthetic/${predecessor.id}/v${predecessor.current_version}`,
+    });
+    await reload(active.userId, active.patientId, active.role);
+    announce("A separate AI proposal was created; protected human state is unchanged.");
+    return result;
   }
 
   async function startThread(title: string, body: string, assignedTo: string | null) {
@@ -724,7 +744,7 @@ export default function App() {
             )}
 
             <div className="care-layout">
-              <Timeline entries={workspace.entries} role={currentRole} activeSource={activeSource} onHistory={openHistory} onEdit={(entry) => setNoteDialog({ open: true, entry })} onComment={setCommentEntry} />
+              <Timeline entries={workspace.entries} role={currentRole} activeSource={activeSource} onHistory={openHistory} onEdit={(entry) => setNoteDialog({ open: true, entry })} onComment={setCommentEntry} onRegenerate={setRegenerationEntry} />
               {currentRole !== "patient" && (
                 <aside className="care-rail">
                   {delta && <DeltaLens delta={delta} onSource={openSource} />}
@@ -773,6 +793,7 @@ export default function App() {
       {scribeOpen && <ScribeDialog role={currentRole} onClose={() => setScribeOpen(false)} onSubmit={submitScribe} onRunStreamScenario={runStreamingSafetyScenario} onReviewStreamSignal={reviewStreamingSignal} onFinalizeStream={finalizeStreamingCapture} />}
       {activeConflict && <ConflictReviewDialog conflict={activeConflict} role={currentRole} busy={conflictBusy} onClose={() => setActiveConflict(null)} onResolve={resolveActiveConflict} />}
       {editConflict && <ConcurrentEditDialog detail={editConflict.detail} onClose={() => setEditConflict(null)} onUseDraft={openReviewedMergeDraft} />}
+      {regenerationEntry && <RegenerationDialog entry={regenerationEntry} onClose={() => setRegenerationEntry(null)} onRegenerate={regenerateProposal} />}
       {reviewOpen && currentPatient && <ReviewCopilotDialog result={reviewResult} busy={reviewBusy} onClose={() => setReviewOpen(false)} onAsk={(question) => askEvidenceReview(question, currentPatient.id)} onSource={(spanId) => { setReviewOpen(false); void openSource(spanId); }} onTaskSource={(entryId) => { setReviewOpen(false); scrollToEntry(entryId); }} />}
       {toast && <div className="toast" role="status"><ShieldCheck size={17} />{toast}</div>}
     </div>

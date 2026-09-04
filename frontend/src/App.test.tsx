@@ -34,6 +34,7 @@ vi.mock("./api", () => {
       revert: vi.fn(),
       createThread: vi.fn(),
       ingestScribe: vi.fn(),
+      regenerateScribe: vi.fn(),
       evidenceReview: vi.fn(),
       policyEvaluation: vi.fn(),
       auditVerification: vi.fn(),
@@ -47,6 +48,7 @@ import App from "./App";
 import { ApiError, api } from "./api";
 import {
   auditEvents,
+  aiEntry,
   delta,
   deliveryReadiness,
   evidenceReview,
@@ -150,6 +152,25 @@ function configureSuccessApi() {
       passed: true,
     },
     flags: ["human_review_required"],
+  });
+  mockedApi.regenerateScribe.mockResolvedValue({
+    entry_id: "entry-regenerated",
+    predecessor_entry_id: "entry-ai",
+    status: "new_ai_proposal_created",
+    provider: "local-deterministic-scribe",
+    provider_status: "live",
+    provider_failure_code: null,
+    flags: ["human_review_required"],
+    preservation_receipt: {
+      unchanged: true,
+      protected_state_hash: "a".repeat(64),
+      protected_highlight_count: 3,
+      completed_task_count: 1,
+      resolved_conflict_count: 1,
+      released_delivery_count: 1,
+      reviewed_signal_count: 1,
+      meaning: "A new AI proposal was created; protected human state was not modified.",
+    },
   });
   mockedApi.evidenceReview.mockResolvedValue(evidenceReview);
   mockedApi.policyEvaluation.mockResolvedValue(evaluation);
@@ -403,6 +424,25 @@ test("concurrent edits become a three-way reviewed draft before a fresh save", a
       expected_version: 2,
     }),
   ));
+});
+
+test("AI regeneration creates a separate proposal and renders its preservation receipt", async () => {
+  await renderFor("user-clinician");
+  const aiCard = screen.getByRole("article", { name: /ai consult draft/i });
+  fireEvent.click(within(aiCard).getByRole("button", { name: /regenerate proposal/i }));
+  expect(await screen.findByRole("heading", { name: "Regenerate AI proposal" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /create separate proposal/i }));
+  await waitFor(() => expect(mockedApi.regenerateScribe).toHaveBeenCalledWith(
+    "user-clinician",
+    aiEntry.id,
+    expect.objectContaining({
+      expected_version: aiEntry.current_version,
+      transcript: expect.stringContaining("synthetic rehearsal"),
+      source_uri: `regeneration://synthetic/${aiEntry.id}/v${aiEntry.current_version}`,
+    }),
+  ));
+  expect(await screen.findByText("Protected state unchanged")).toBeVisible();
+  expect(await screen.findByRole("status")).toHaveTextContent("separate AI proposal");
 });
 
 test("admin retention remains available without an assigned patient and skips care refresh", async () => {

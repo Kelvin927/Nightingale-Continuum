@@ -99,6 +99,7 @@ vi.mock("./api", () => ({
     revert: vi.fn(),
     createThread: vi.fn(),
     ingestScribe: vi.fn(),
+    regenerateScribe: vi.fn(),
     evidenceReview: vi.fn(),
     policyEvaluation: vi.fn(),
     auditVerification: vi.fn(),

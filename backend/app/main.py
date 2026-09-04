@@ -106,6 +106,7 @@ from .schemas import (
     FeedbackRequest,
     QueueCorrectionRequest,
     QueueDeliveryRequest,
+    RegenerateScribeRequest,
     ResolveConflictRequest,
     ResolveThreadRequest,
     RetentionRunRequest,
@@ -118,8 +119,10 @@ from .schemas import (
 from .scribe import (
     LocalDeterministicScribe,
     RedactionFidelityError,
+    RegenerationError,
     ingest_scribe,
     receipt_dict,
+    regenerate_scribe,
 )
 from .seed import DEMO_USERS, seed_database
 from .telemetry import SafeTelemetrySink, normalize_request_id, route_template
@@ -1188,6 +1191,77 @@ def create_app(
             "provider_failure_code": result.provider_failure_code,
             "redaction_receipt": receipt_dict(result.receipt),
             "flags": result.flags,
+        }
+
+    @app.post(f"{API_PREFIX}/entries/{{entry_id}}/regenerate", status_code=201)
+    def scribe_regenerate(
+        entry_id: str,
+        payload: RegenerateScribeRequest,
+        request: Request,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        if actor.role not in {"staff", "clinician"}:
+            raise forbidden("regeneration_role_required")
+        predecessor = require_entry_read(session, actor, entry_id)
+        patient = require_patient(session, actor, predecessor.patient_id)
+        system_actor = session.scalar(
+            select(User).where(User.clinic_id == actor.clinic_id, User.role == "system")
+        )
+        if system_actor is None:
+            raise HTTPException(status_code=503, detail="System author unavailable")
+        try:
+            receipt = regenerate_scribe(
+                session,
+                initiating_actor=actor,
+                system_actor=system_actor,
+                patient=patient,
+                predecessor=predecessor,
+                expected_version=payload.expected_version,
+                transcript=payload.transcript,
+                source_uri=payload.source_uri,
+                provider=request.app.state.scribe_gateway,
+            )
+        except RegenerationError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": exc.code, "message": str(exc)},
+            ) from exc
+        except RedactionFidelityError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "redaction_fidelity_failed",
+                    "message": "The regeneration was withheld because clinical anchors changed.",
+                },
+            ) from exc
+        detect_structured_conflicts(session, receipt.result.entry)
+        _refresh_projection(session, patient)
+        session.commit()
+        return {
+            "entry_id": receipt.result.entry.id,
+            "predecessor_entry_id": receipt.predecessor_entry_id,
+            "status": "new_ai_proposal_created",
+            "provider": receipt.result.provider_name,
+            "provider_status": receipt.result.provider_status,
+            "provider_failure_code": receipt.result.provider_failure_code,
+            "flags": receipt.result.flags,
+            "preservation_receipt": {
+                "unchanged": True,
+                "protected_state_hash": receipt.protected_state_hash,
+                "protected_highlight_count": receipt.protected_highlight_count,
+                "completed_task_count": receipt.completed_task_count,
+                "resolved_conflict_count": receipt.resolved_conflict_count,
+                "released_delivery_count": receipt.released_delivery_count,
+                "reviewed_signal_count": receipt.reviewed_signal_count,
+                "meaning": (
+                    "A new AI proposal was created; no human entry version, decided highlight, "
+                    "completed task, resolved conflict, released delivery, or reviewed safety "
+                    "signal was modified."
+                ),
+            },
         }
 
     @app.post(f"{API_PREFIX}/review/query")

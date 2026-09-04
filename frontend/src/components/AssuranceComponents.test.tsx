@@ -203,7 +203,12 @@ test("research panel distinguishes loading, evaluable, and unsafe evidence", () 
 });
 
 test("timeline covers source highlighting, permissions, threads, labels, and every filter", () => {
-  const handlers = { onHistory: vi.fn(), onEdit: vi.fn(), onComment: vi.fn() };
+  const handlers = {
+    onHistory: vi.fn(),
+    onEdit: vi.fn(),
+    onComment: vi.fn(),
+    onRegenerate: vi.fn(),
+  };
   const unknownEntry = {
     ...clinicianEntry,
     id: "entry-unknown",
@@ -249,6 +254,8 @@ test("timeline covers source highlighting, permissions, threads, labels, and eve
 
   fireEvent.click(screen.getByRole("button", { name: "AI drafts" }));
   expect(screen.getByText("AI consult draft")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /regenerate proposal/i }));
+  expect(handlers.onRegenerate).toHaveBeenCalledWith(aiEntry);
   expect(screen.queryByText("Assessment and plan")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Patient" }));
   expect(screen.getByText("What matters to me")).toBeVisible();
@@ -272,6 +279,7 @@ test("timeline handles mismatched source text, no-thread comments, and patient p
       onHistory={vi.fn()}
       onEdit={vi.fn()}
       onComment={onComment}
+      onRegenerate={vi.fn()}
     />,
   );
   expect(screen.queryByRole("button", { name: /comment/i })).toBeNull();
@@ -285,6 +293,7 @@ test("timeline handles mismatched source text, no-thread comments, and patient p
       onHistory={vi.fn()}
       onEdit={vi.fn()}
       onComment={onComment}
+      onRegenerate={vi.fn()}
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: "Comment" }));
