@@ -432,6 +432,8 @@ def test_evidence_review_separates_claims_actions_conflicts_and_abstention(
         assert overview.open_actions[1].source_entry_id == source_task.source_entry_id
         assert overview.conflicts == (
             "Newer open conflict",
+            "Allergy status mismatch: a no-known-allergy statement conflicts with "
+            "a recorded reaction to penicillin.",
             "AI session asks whether to continue 20 mg; clinician plan defers the decision "
             "pending labs.",
         )

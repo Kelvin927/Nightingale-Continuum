@@ -106,12 +106,37 @@ export interface DeliveryReadiness {
   safety_contract: string;
 }
 
+export interface ConflictSource {
+  state: "available" | "unavailable";
+  version_id: string;
+  entry_id?: string;
+  entry_title?: string;
+  entry_type?: string;
+  owner_role?: string;
+  trust_state?: string;
+  author?: Identity | null;
+  version?: number;
+  content?: string;
+  content_hash?: string;
+  source_is_current?: boolean;
+  created_at?: string;
+}
+
 export interface ConflictItem {
   id: string;
   conflict_type: string;
   summary: string;
   status: string;
   disposition: string | null;
+  resolution: {
+    decision: string | null;
+    rationale: string | null;
+    resolved_by: string | null;
+  };
+  left: ConflictSource;
+  right: ConflictSource;
+  decision_policy: string;
+  created_at: string;
 }
 
 export interface Workspace {

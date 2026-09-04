@@ -23,6 +23,7 @@ import {
 
 import { ApiError, api } from "./api";
 import { AdminPanel } from "./components/AdminPanel";
+import { ConflictReviewDialog } from "./components/ConflictReviewDialog";
 import {
   CommentDialog,
   HistoryDialog,
@@ -39,6 +40,7 @@ import { Timeline } from "./components/Timeline";
 import type {
   AuditEvent,
   AuditVerification,
+  ConflictItem,
   DeliveryItem,
   DeliveryReadiness,
   DeltaLens as DeltaLensType,
@@ -115,6 +117,8 @@ export default function App() {
   const [verification, setVerification] = useState<AuditVerification | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [retentionBusy, setRetentionBusy] = useState(false);
+  const [activeConflict, setActiveConflict] = useState<ConflictItem | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
 
   const selectedIdentity = identities.find((item) => item.id === userId) ?? null;
   const currentPatient = workspace?.patient ?? patients.find((patient) => patient.id === patientId) ?? null;
@@ -128,6 +132,7 @@ export default function App() {
     commentEntry,
     historyEntry,
     scribeOpen,
+    activeConflict,
   });
   actionContext.current = {
     userId,
@@ -137,6 +142,7 @@ export default function App() {
     commentEntry,
     historyEntry,
     scribeOpen,
+    activeConflict,
   };
 
   const collaborator = useMemo(() => {
@@ -188,6 +194,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setActiveSource(null);
+    setActiveConflict(null);
     setPatientId(null);
     setWorkspace(null);
     setGlance(null);
@@ -480,6 +487,34 @@ export default function App() {
     return result;
   }
 
+  async function resolveActiveConflict(
+    decision: "confirm_left" | "confirm_right" | "escalate_unresolved",
+    rationale: string,
+    sourcesReviewed: boolean,
+  ) {
+    const active = actionContext.current;
+    if (!active.activeConflict || !active.patientId) return;
+    setConflictBusy(true);
+    try {
+      const resolved = await api.resolveConflict(
+        active.userId,
+        active.activeConflict.id,
+        decision,
+        rationale,
+        sourcesReviewed,
+      );
+      setActiveConflict(resolved);
+      await reload(active.userId, active.patientId, active.role);
+      announce(
+        decision === "escalate_unresolved"
+          ? "Contradiction preserved and escalated without selecting a winner."
+          : "Conflict decision recorded against both immutable sources.",
+      );
+    } finally {
+      setConflictBusy(false);
+    }
+  }
+
   async function askEvidenceReview(question: string, activePatientId: string) {
     const active = actionContext.current;
     setReviewBusy(true);
@@ -654,7 +689,7 @@ export default function App() {
                       <article key={conflict.id}>
                         <span>{conflict.conflict_type.replaceAll("_", " ")}</span>
                         <p>{conflict.summary}</p>
-                        <button onClick={() => document.querySelector("#timeline")?.scrollIntoView({ behavior: "smooth" })}>Review evidence</button>
+                        <button onClick={() => setActiveConflict(conflict)}>Compare both sources</button>
                       </article>
                     ))}
                   </div>
@@ -688,6 +723,7 @@ export default function App() {
       {commentEntry && <CommentDialog entry={commentEntry} collaborator={collaborator} onClose={() => setCommentEntry(null)} onSubmit={startThread} />}
       {historyEntry && <HistoryDialog entry={historyEntry} versions={versions} loading={historyLoading} onClose={() => { setHistoryEntry(null); setVersions([]); }} onRevert={restoreVersion} />}
       {scribeOpen && <ScribeDialog role={currentRole} onClose={() => setScribeOpen(false)} onSubmit={submitScribe} onRunStreamScenario={runStreamingSafetyScenario} onReviewStreamSignal={reviewStreamingSignal} onFinalizeStream={finalizeStreamingCapture} />}
+      {activeConflict && <ConflictReviewDialog conflict={activeConflict} role={currentRole} busy={conflictBusy} onClose={() => setActiveConflict(null)} onResolve={resolveActiveConflict} />}
       {reviewOpen && currentPatient && <ReviewCopilotDialog result={reviewResult} busy={reviewBusy} onClose={() => setReviewOpen(false)} onAsk={(question) => askEvidenceReview(question, currentPatient.id)} onSource={(spanId) => { setReviewOpen(false); void openSource(spanId); }} onTaskSource={(entryId) => { setReviewOpen(false); scrollToEntry(entryId); }} />}
       {toast && <div className="toast" role="status"><ShieldCheck size={17} />{toast}</div>}
     </div>

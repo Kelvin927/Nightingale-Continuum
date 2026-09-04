@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .care import create_entry, current_version
 from .configuration import ClinicConfiguration, install_seed_configuration
+from .conflicts import detect_structured_conflicts
 from .importance import build_glance_projection, generate_highlights_for_entry
 from .models import (
     CareTask,
@@ -263,6 +264,21 @@ def seed_database(session: Session) -> None:
         trust_state="clinician_confirmed",
         created_at=_dt("2026-02-06T10:10:00"),
     )
+    patient_allergy_statement = create_entry(
+        session,
+        actor=users["patient"],
+        clinic_id=northstar.id,
+        patient_id=maya.id,
+        owner_role="patient",
+        entry_type="patient_insight",
+        title="Patient-reported allergy status",
+        content="I believe I have no known drug allergies.",
+        visibility="patient",
+        trust_state="human_authored",
+        created_at=_dt("2026-02-06T10:14:00"),
+    )
+    for detected_conflict in detect_structured_conflicts(session, patient_allergy_statement):
+        detected_conflict.created_at = _dt("2026-02-06T10:15:00")
     create_entry(
         session,
         actor=users["clinician"],

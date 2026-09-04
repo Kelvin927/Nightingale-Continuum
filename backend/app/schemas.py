@@ -111,6 +111,14 @@ class SafetySignalReviewRequest(BaseModel):
     rationale: str = Field(min_length=5, max_length=280)
 
 
+class ResolveConflictRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    decision: str = Field(pattern="^(confirm_left|confirm_right|escalate_unresolved)$")
+    rationale: str = Field(min_length=8, max_length=220)
+    confirm_sources_reviewed: bool
+
+
 class EvidenceReviewRequest(BaseModel):
     patient_id: str
     question: str = Field(min_length=3, max_length=500)

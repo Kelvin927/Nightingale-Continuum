@@ -104,9 +104,16 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "Confirmed with patient.",
   );
   await api.capture("user-1", "capture-1");
+  await api.resolveConflict(
+    "user-1",
+    "conflict-1",
+    "escalate_unresolved",
+    "Both records require external reconciliation.",
+    true,
+  );
 
   const calls = vi.mocked(fetch).mock.calls;
-  expect(calls).toHaveLength(28);
+  expect(calls).toHaveLength(29);
   expect(calls.map(([path]) => path)).toEqual([
     "/api/v1/demo/identities",
     "/api/v1/me",
@@ -136,6 +143,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "/api/v1/captures/capture-1/finalize",
     "/api/v1/safety-signals/signal-1/review",
     "/api/v1/captures/capture-1",
+    "/api/v1/conflicts/conflict-1/resolve",
   ]);
   expect((calls[0][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
   expect((calls[1][1]?.headers as Headers).get("X-Demo-User")).toBe("user-1");
@@ -165,6 +173,14 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     decision: "confirm",
     rationale: "Confirmed with patient.",
   }));
+  expect(calls[28][1]).toMatchObject({
+    method: "POST",
+    body: JSON.stringify({
+      decision: "escalate_unresolved",
+      rationale: "Both records require external reconciliation.",
+      confirm_sources_reviewed: true,
+    }),
+  });
 });
 
 test("API errors keep status and support string, object, and invalid JSON details", async () => {

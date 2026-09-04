@@ -1,6 +1,7 @@
 import type {
   AuditEvent,
   AuditVerification,
+  ConflictItem,
   DeltaLens,
   DeliveryReadiness,
   EvidenceReview,
@@ -242,6 +243,21 @@ export const api = {
     }),
   capture: (userId: string, captureId: string) =>
     request<StreamingCapture>(`/api/v1/captures/${captureId}`, userId),
+  resolveConflict: (
+    userId: string,
+    conflictId: string,
+    decision: "confirm_left" | "confirm_right" | "escalate_unresolved",
+    rationale: string,
+    confirmSourcesReviewed: boolean,
+  ) =>
+    request<ConflictItem>(`/api/v1/conflicts/${conflictId}/resolve`, userId, {
+      method: "POST",
+      body: JSON.stringify({
+        decision,
+        rationale,
+        confirm_sources_reviewed: confirmSourcesReviewed,
+      }),
+    }),
   evidenceReview: (userId: string, patientId: string, question: string) =>
     request<EvidenceReview>("/api/v1/review/query", userId, {
       method: "POST",

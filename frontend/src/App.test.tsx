@@ -25,6 +25,7 @@ vi.mock("./api", () => {
       queueDelivery: vi.fn(),
       queueCorrection: vi.fn(),
       transitionDelivery: vi.fn(),
+      resolveConflict: vi.fn(),
       provenance: vi.fn(),
       feedback: vi.fn(),
       createEntry: vi.fn(),
@@ -108,6 +109,16 @@ function configureSuccessApi() {
   mockedApi.queueDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
   mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
+  mockedApi.resolveConflict.mockImplementation(async (_userId, _conflictId, decision, rationale) => ({
+    ...workspace.conflicts[0],
+    status: decision === "escalate_unresolved" ? "escalated" : "resolved",
+    disposition: `${decision}|${rationale}`,
+    resolution: {
+      decision,
+      rationale,
+      resolved_by: "user-clinician",
+    },
+  }));
   mockedApi.provenance.mockResolvedValue(provenance);
   mockedApi.feedback.mockResolvedValue({
     status: "accepted",
@@ -179,7 +190,6 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
   expect(mockedApi.policyEvaluation).toHaveBeenCalledWith("user-clinician");
   fireEvent.click(screen.getByRole("button", { name: /care note/i }));
   fireEvent.click(screen.getByRole("button", { name: /related note/i }));
-  fireEvent.click(screen.getByRole("button", { name: /review evidence/i }));
 
   fireEvent.click(screen.getByRole("button", { name: /^evidence review$/i }));
   fireEvent.click(screen.getByRole("button", { name: "Which medication evidence conflicts?" }));
@@ -212,6 +222,30 @@ test("clinician workflow completes evidence review, provenance, notes, threads, 
     "accept",
   ));
   expect(await screen.findByRole("status")).toHaveTextContent("Accept recorded");
+
+  fireEvent.click(screen.getByRole("button", { name: /compare both sources/i }));
+  const conflictDialog = screen.getByRole("dialog");
+  expect(within(conflictDialog).getByText("Continue amoxicillin 500 mg twice daily.")).toBeVisible();
+  expect(within(conflictDialog).getByText("I take amoxicillin 250 mg twice daily.")).toBeVisible();
+  const confirmRight = within(conflictDialog).getByRole("button", { name: /confirm assertion b/i });
+  expect(confirmRight).toBeDisabled();
+  fireEvent.click(within(conflictDialog).getByLabelText(/reviewed both immutable source versions/i));
+  fireEvent.change(within(conflictDialog).getByLabelText(/clinical rationale/i), {
+    target: { value: "Confirmed against the current medication administration record." },
+  });
+  fireEvent.click(confirmRight);
+  await waitFor(() => expect(mockedApi.resolveConflict).toHaveBeenCalledWith(
+    "user-clinician",
+    "conflict-1",
+    "confirm_right",
+    "Confirmed against the current medication administration record.",
+    true,
+  ));
+  expect(await screen.findByText("resolved")).toBeVisible();
+  expect(await screen.findByRole("status")).toHaveTextContent("Conflict decision recorded");
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getAllByRole("button", { name: "Close dialog" })[1],
+  );
 
   fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
   fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));

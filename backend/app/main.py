@@ -40,7 +40,12 @@ from .configuration import (
     active_configuration,
     serialize_configuration,
 )
-from .conflicts import detect_structured_conflicts
+from .conflicts import (
+    ConflictResolutionError,
+    detect_structured_conflicts,
+    resolve_conflict,
+    serialize_conflict,
+)
 from .constants import DETERMINISTIC_DISPLAY_PROPENSITY
 from .database import Database, sqlite_version
 from .delivery import (
@@ -101,6 +106,7 @@ from .schemas import (
     FeedbackRequest,
     QueueCorrectionRequest,
     QueueDeliveryRequest,
+    ResolveConflictRequest,
     ResolveThreadRequest,
     RetentionRunRequest,
     RevertEntryRequest,
@@ -281,6 +287,13 @@ def _capture_error(exc: CaptureContractError) -> HTTPException:
     )
 
 
+def _conflict_review_error(exc: ConflictResolutionError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": exc.code, "message": str(exc)},
+    )
+
+
 def create_app(
     *,
     database_url: str | None = None,
@@ -441,13 +454,7 @@ def create_app(
         conflicts = []
         if can_view_internal(actor):
             conflicts = [
-                {
-                    "id": item.id,
-                    "conflict_type": item.conflict_type,
-                    "summary": item.summary,
-                    "status": item.status,
-                    "disposition": item.disposition,
-                }
+                serialize_conflict(session, item)
                 for item in session.scalars(
                     select(Conflict)
                     .where(Conflict.patient_id == patient.id)
@@ -859,6 +866,32 @@ def create_app(
         _refresh_projection(session, patient)
         session.commit()
         return {"id": thread.id, "resolved": thread.resolved, "resolved_by": thread.resolved_by}
+
+    @app.post(f"{API_PREFIX}/conflicts/{{conflict_id}}/resolve")
+    def conflict_resolve(
+        conflict_id: str,
+        payload: ResolveConflictRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        conflict = session.get(Conflict, conflict_id)
+        if conflict is None:
+            raise conceal()
+        require_patient(session, actor, conflict.patient_id)
+        try:
+            resolve_conflict(
+                session,
+                actor=actor,
+                conflict=conflict,
+                decision=payload.decision,
+                rationale=payload.rationale,
+                confirm_sources_reviewed=payload.confirm_sources_reviewed,
+            )
+        except ConflictResolutionError as exc:
+            session.rollback()
+            raise _conflict_review_error(exc) from exc
+        session.commit()
+        return serialize_conflict(session, conflict)
 
     @app.get(f"{API_PREFIX}/provenance/{{span_id}}/resolve")
     def provenance(span_id: str, session: SessionDep, actor: ActorDep) -> dict:
