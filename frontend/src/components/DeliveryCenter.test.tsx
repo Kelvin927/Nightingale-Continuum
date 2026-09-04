@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { deliveryReadiness, patientInstruction } from "../test/fixtures";
-import type { DeliveryItem } from "../types";
+import type { DeliveryItem, Entry } from "../types";
 import { DeliveryCenter } from "./DeliveryCenter";
 
 const delivered: DeliveryItem = {
@@ -21,6 +21,17 @@ const delivered: DeliveryItem = {
   accepted_at: "2026-09-05T00:01:00Z",
   delivered_at: "2026-09-05T00:02:00Z",
   superseded_at: null,
+};
+
+const plainEntry: Entry = {
+  ...patientInstruction,
+  id: "entry-plain-summary",
+  title: "Plain follow-up summary",
+  version: {
+    ...patientInstruction.version,
+    id: "version-plain-summary",
+    content: "Your next visit is booked for Monday.",
+  },
 };
 
 function props() {
@@ -123,5 +134,65 @@ test("missing route and empty ledger fail visibly without creating an action", (
   );
   expect(screen.getByText("No ready route")).toBeVisible();
   expect(screen.getByText(/No patient communication has been queued/i)).toBeVisible();
+  expect(screen.getByRole("button", { name: /queue approved copy/i })).toBeDisabled();
+});
+
+test("entry selection recalculates a non-medication approval contract", () => {
+  const values = props();
+  render(
+    <DeliveryCenter
+      {...values}
+      patientFacingEntries={[patientInstruction, plainEntry]}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("Patient-facing source"), {
+    target: { value: plainEntry.id },
+  });
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  const queue = screen.getByRole("button", { name: /queue approved copy/i });
+  expect(screen.getByText(/verified every medication and dose \(if present\)/i)).toBeVisible();
+  expect(queue).toBeEnabled();
+  fireEvent.click(queue);
+  expect(values.onQueue).toHaveBeenCalledWith(
+    plainEntry,
+    "contact-whatsapp",
+    { clinical: true, identity: true, medication: false },
+  );
+});
+
+test("failed, superseded, and correction delivery states remain distinguishable", () => {
+  const values = props();
+  render(
+    <DeliveryCenter
+      {...values}
+      readiness={{
+        ...deliveryReadiness,
+        contacts: deliveryReadiness.contacts.map((contact) => ({ ...contact, preferred: false })),
+        deliveries: [
+          { ...delivered, id: "delivery-failed", status: "failed" },
+          { ...delivered, id: "delivery-superseded", status: "superseded" },
+          {
+            ...delivered,
+            id: "delivery-correction",
+            correction_for_id: "delivery-original",
+            source_is_current: true,
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByText("failed")).toBeVisible();
+  expect(screen.getByText("superseded")).toBeVisible();
+  expect(screen.getByText("Correction")).toBeVisible();
+  expect(screen.getAllByText(/WhatsApp ending 4567/).length).toBeGreaterThan(0);
+});
+
+test("an empty patient-facing catalogue has no selected source", () => {
+  const values = props();
+  render(<DeliveryCenter {...values} patientFacingEntries={[]} />);
+  expect(
+    (screen.getByLabelText("Patient-facing source") as HTMLSelectElement).options,
+  ).toHaveLength(0);
   expect(screen.getByRole("button", { name: /queue approved copy/i })).toBeDisabled();
 });

@@ -60,6 +60,19 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   await api.auditEvents("user-1");
   await api.runRetention("user-1");
   await api.deliveryReadiness("user-1", "patient-1");
+  await api.issuePatientAccess("user-1", "patient-1", {
+    contact_id: "contact-1",
+    purpose: "portal_access",
+    ttl_minutes: 10,
+  });
+  await api.redeemPatientAccess({
+    claim_token: "claim-secret",
+    synthetic_record_number: "SYN-0001",
+    date_of_birth: "1988-05-12",
+    device_binding: "device-1",
+  });
+  await api.patientSessionMe("session-secret", "device-1");
+  await api.patientSessionWorkspace("session-secret", "device-1", "patient-1");
   await api.queueDelivery("user-1", "entry-1", {
     contact_id: "contact-1",
     expected_version: 2,
@@ -118,7 +131,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   );
 
   const calls = vi.mocked(fetch).mock.calls;
-  expect(calls).toHaveLength(30);
+  expect(calls).toHaveLength(34);
   expect(calls.map(([path]) => path)).toEqual([
     "/api/v1/demo/identities",
     "/api/v1/me",
@@ -140,6 +153,10 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "/api/v1/admin/audit/events?limit=30",
     "/api/v1/admin/retention/run",
     "/api/v1/patients/patient-1/delivery-readiness",
+    "/api/v1/patients/patient-1/access-claims",
+    "/api/v1/patient-access/redeem",
+    "/api/v1/me",
+    "/api/v1/patients/patient-1/workspace",
     "/api/v1/entries/entry-1/deliveries",
     "/api/v1/deliveries/delivery-1/corrections",
     "/api/v1/deliveries/delivery-1/transition",
@@ -166,20 +183,33 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     body: JSON.stringify({ patient_id: "patient-1", question: "What changed?" }),
   });
   expect(calls[18][1]?.body).toBe(JSON.stringify({ as_of: "2026-08-26T12:00:00.000Z" }));
-  expect(calls[20][1]).toMatchObject({ method: "POST" });
-  expect(calls[21][1]?.body).toContain('"replacement_entry_id":"entry-1"');
-  expect(calls[22][1]?.body).toBe(JSON.stringify({
+  expect(calls[20][1]).toMatchObject({
+    method: "POST",
+    body: JSON.stringify({
+      contact_id: "contact-1",
+      purpose: "portal_access",
+      ttl_minutes: 10,
+    }),
+  });
+  expect((calls[21][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
+  expect((calls[22][1]?.headers as Headers).get("X-Patient-Session")).toBe("session-secret");
+  expect((calls[22][1]?.headers as Headers).get("X-Patient-Device")).toBe("device-1");
+  expect((calls[22][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
+  expect((calls[23][1]?.headers as Headers).get("X-Patient-Session")).toBe("session-secret");
+  expect(calls[24][1]).toMatchObject({ method: "POST" });
+  expect(calls[25][1]?.body).toContain('"replacement_entry_id":"entry-1"');
+  expect(calls[26][1]?.body).toBe(JSON.stringify({
     outcome: "accepted",
     provider_message_id: "provider-1",
   }));
-  expect(calls[23][1]?.body).toBe(JSON.stringify({ interaction_type: "doctor_consult" }));
-  expect(calls[24][1]?.body).toContain('"chunk_id":"chunk-1"');
-  expect(calls[25][1]).toMatchObject({ method: "POST" });
-  expect(calls[26][1]?.body).toBe(JSON.stringify({
+  expect(calls[27][1]?.body).toBe(JSON.stringify({ interaction_type: "doctor_consult" }));
+  expect(calls[28][1]?.body).toContain('"chunk_id":"chunk-1"');
+  expect(calls[29][1]).toMatchObject({ method: "POST" });
+  expect(calls[30][1]?.body).toBe(JSON.stringify({
     decision: "confirm",
     rationale: "Confirmed with patient.",
   }));
-  expect(calls[28][1]).toMatchObject({
+  expect(calls[32][1]).toMatchObject({
     method: "POST",
     body: JSON.stringify({
       expected_version: 1,
@@ -187,7 +217,7 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
       source_uri: "regeneration://synthetic/entry-ai/v1",
     }),
   });
-  expect(calls[29][1]).toMatchObject({
+  expect(calls[33][1]).toMatchObject({
     method: "POST",
     body: JSON.stringify({
       decision: "escalate_unresolved",
@@ -222,4 +252,29 @@ test("API errors keep status and support string, object, and invalid JSON detail
     detail: "Server Error",
   });
   expect(new ApiError(400, "Bad request").message).toBe("Bad request");
+});
+
+test("patient-session requests fail with API detail or status text without leaking credentials", async () => {
+  vi.mocked(fetch)
+    .mockResolvedValueOnce(response({ detail: "Invalid patient session" }, 401, "Unauthorized"))
+    .mockResolvedValueOnce({
+      ...response({}, 503, "Service Unavailable"),
+      json: vi.fn().mockRejectedValue(new SyntaxError("invalid JSON")),
+    } as unknown as Response);
+
+  await expect(api.patientSessionMe("session-secret", "device-secret")).rejects.toMatchObject({
+    status: 401,
+    detail: "Invalid patient session",
+  });
+  await expect(
+    api.patientSessionWorkspace("session-secret", "device-secret", "patient-1"),
+  ).rejects.toMatchObject({
+    status: 503,
+    detail: "Service Unavailable",
+  });
+  for (const [, init] of vi.mocked(fetch).mock.calls) {
+    expect((init?.headers as Headers).get("X-Patient-Session")).toBe("session-secret");
+    expect((init?.headers as Headers).get("X-Patient-Device")).toBe("device-secret");
+    expect((init?.headers as Headers).has("X-Demo-User")).toBe(false);
+  }
 });

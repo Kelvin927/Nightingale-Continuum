@@ -160,3 +160,20 @@ class DeliveryTransitionRequest(BaseModel):
 
 class QueueCorrectionRequest(QueueDeliveryRequest):
     replacement_entry_id: str = Field(min_length=3, max_length=64)
+
+
+class IssuePatientAccessClaimRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    contact_id: str = Field(min_length=1, max_length=64)
+    purpose: str = Field(pattern="^(portal_access|intake|summary|instructions)$")
+    ttl_minutes: int = Field(ge=5, le=15)
+
+
+class RedeemPatientAccessClaimRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    claim_token: str = Field(min_length=20, max_length=100)
+    synthetic_record_number: str = Field(min_length=4, max_length=32)
+    date_of_birth: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    device_binding: str = Field(min_length=12, max_length=200)

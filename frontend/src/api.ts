@@ -9,6 +9,8 @@ import type {
   Identity,
   LanguageSpan,
   Patient,
+  PatientAccessClaim,
+  PatientAccessGrant,
   PolicyEvaluation,
   ResolvedProvenance,
   RegenerationResult,
@@ -44,6 +46,24 @@ async function request<T>(path: string, userId?: string, init?: RequestInit): Pr
   return response.json() as Promise<T>;
 }
 
+async function patientSessionRequest<T>(
+  path: string,
+  sessionToken: string,
+  deviceBinding: string,
+  init?: RequestInit,
+): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Patient-Session", sessionToken);
+  headers.set("X-Patient-Device", deviceBinding);
+  const response = await fetch(path, { ...init, headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, payload.detail);
+  }
+  return response.json() as Promise<T>;
+}
+
 export const api = {
   identities: () =>
     request<{ warning: string; identities: Identity[] }>("/api/v1/demo/identities"),
@@ -60,6 +80,42 @@ export const api = {
     request<DeliveryReadiness>(
       `/api/v1/patients/${patientId}/delivery-readiness`,
       userId,
+    ),
+  issuePatientAccess: (
+    userId: string,
+    patientId: string,
+    payload: {
+      contact_id: string;
+      purpose: PatientAccessClaim["purpose"];
+      ttl_minutes: number;
+    },
+  ) =>
+    request<PatientAccessClaim>(
+      `/api/v1/patients/${patientId}/access-claims`,
+      userId,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+  redeemPatientAccess: (payload: {
+    claim_token: string;
+    synthetic_record_number: string;
+    date_of_birth: string;
+    device_binding: string;
+  }) =>
+    request<PatientAccessGrant>("/api/v1/patient-access/redeem", undefined, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  patientSessionMe: (sessionToken: string, deviceBinding: string) =>
+    patientSessionRequest<Viewer>("/api/v1/me", sessionToken, deviceBinding),
+  patientSessionWorkspace: (
+    sessionToken: string,
+    deviceBinding: string,
+    patientId: string,
+  ) =>
+    patientSessionRequest<Workspace>(
+      `/api/v1/patients/${patientId}/workspace`,
+      sessionToken,
+      deviceBinding,
     ),
   queueDelivery: (
     userId: string,

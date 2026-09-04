@@ -95,3 +95,33 @@ test("overlap and missing current evidence fail closed", () => {
   fireEvent.click(screen.getByLabelText(/compared the base, current record, and my draft/i));
   expect(screen.getByRole("button", { name: /open reviewed draft/i })).toBeDisabled();
 });
+
+test("fully missing merge evidence renders every conservative fallback", () => {
+  const { rerender } = render(
+    <ConcurrentEditDialog
+      detail={{
+        ...detail,
+        base_snapshot: null,
+        current_snapshot: null,
+        proposed_content: null,
+        proposed_content_hash: null,
+        merge_assistance: null,
+      }}
+      onClose={vi.fn()}
+      onUseDraft={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("Base version unavailable. Compare manually and fail closed.")).toBeVisible();
+  expect(screen.getByText("Current version unavailable. Do not resubmit.")).toBeVisible();
+  expect(screen.getByText("Proposed content unavailable.")).toBeVisible();
+  expect(screen.getAllByText("Unsaved draft")).toHaveLength(3);
+
+  rerender(
+    <ConcurrentEditDialog
+      detail={{ ...detail, merge_assistance: null }}
+      onClose={vi.fn()}
+      onUseDraft={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText(/^Reviewed draft/i)).toHaveValue(detail.proposed_content);
+});

@@ -11,6 +11,7 @@ import {
   Menu,
   MessageCircleMore,
   Mic,
+  KeyRound,
   PanelLeftClose,
   RefreshCw,
   Search,
@@ -34,6 +35,7 @@ import {
 import { DeltaLens } from "./components/DeltaLens";
 import { DeliveryCenter } from "./components/DeliveryCenter";
 import { GlanceBoard } from "./components/GlanceBoard";
+import { PatientAccessDialog } from "./components/PatientAccessDialog";
 import { ProvenanceDrawer } from "./components/ProvenanceDrawer";
 import { RegenerationDialog } from "./components/RegenerationDialog";
 import { ReviewCopilotDialog } from "./components/ReviewCopilot";
@@ -52,6 +54,8 @@ import type {
   Glance,
   Identity,
   Patient,
+  PatientAccessClaim,
+  PatientAccessProof,
   PolicyEvaluation,
   RegenerationResult,
   ResolvedProvenance,
@@ -136,6 +140,7 @@ export default function App() {
     detail: VersionConflictDetail;
   } | null>(null);
   const [regenerationEntry, setRegenerationEntry] = useState<Entry | null>(null);
+  const [patientAccessOpen, setPatientAccessOpen] = useState(false);
 
   const selectedIdentity = identities.find((item) => item.id === userId) ?? null;
   const currentPatient = workspace?.patient ?? patients.find((patient) => patient.id === patientId) ?? null;
@@ -150,6 +155,7 @@ export default function App() {
     historyEntry,
     scribeOpen,
     activeConflict,
+    editConflict,
   });
   actionContext.current = {
     userId,
@@ -160,6 +166,7 @@ export default function App() {
     historyEntry,
     scribeOpen,
     activeConflict,
+    editConflict,
   };
 
   const collaborator = useMemo(() => {
@@ -214,6 +221,7 @@ export default function App() {
     setActiveConflict(null);
     setEditConflict(null);
     setRegenerationEntry(null);
+    setPatientAccessOpen(false);
     setPatientId(null);
     setWorkspace(null);
     setGlance(null);
@@ -354,7 +362,7 @@ export default function App() {
   }
 
   function openReviewedMergeDraft(content: string) {
-    const conflict = editConflict;
+    const conflict = actionContext.current.editConflict;
     if (!conflict) return;
     const current = conflict.detail.current_snapshot;
     if (!current) return;
@@ -619,9 +627,11 @@ export default function App() {
     contactId: string,
     attestations: { clinical: boolean; identity: boolean; medication: boolean },
   ) {
+    const active = actionContext.current;
+    if (active.role !== "clinician" || !active.patientId || entry.patient_id !== active.patientId) return;
     setDeliveryBusy(true);
     try {
-      const next = await api.queueDelivery(userId, entry.id, {
+      const next = await api.queueDelivery(active.userId, entry.id, {
         contact_id: contactId,
         expected_version: entry.current_version,
         idempotency_key: `delivery-${entry.id}-v${entry.current_version}-${contactId}`,
@@ -644,9 +654,11 @@ export default function App() {
     contactId: string,
     attestations: { clinical: boolean; identity: boolean; medication: boolean },
   ) {
+    const active = actionContext.current;
+    if (active.role !== "clinician" || !active.patientId || entry.patient_id !== active.patientId) return;
     setDeliveryBusy(true);
     try {
-      const next = await api.queueCorrection(userId, original.id, {
+      const next = await api.queueCorrection(active.userId, original.id, {
         replacement_entry_id: entry.id,
         contact_id: contactId,
         expected_version: entry.current_version,
@@ -668,9 +680,11 @@ export default function App() {
     item: DeliveryItem,
     outcome: "queued" | "accepted" | "delivered" | "failed",
   ) {
+    const active = actionContext.current;
+    if (active.role !== "admin" || !active.patientId) return;
     setDeliveryBusy(true);
     try {
-      const next = await api.transitionDelivery(userId, item.id, {
+      const next = await api.transitionDelivery(active.userId, item.id, {
         outcome,
         ...(outcome === "accepted"
           ? { provider_message_id: `synthetic-${item.id}` }
@@ -685,6 +699,57 @@ export default function App() {
     } finally {
       setDeliveryBusy(false);
     }
+  }
+
+  async function issuePatientAccess(payload: {
+    contactId: string;
+    purpose: PatientAccessClaim["purpose"];
+    ttlMinutes: number;
+  }): Promise<PatientAccessClaim> {
+    const active = actionContext.current;
+    if (!active.patientId || !["clinician", "staff"].includes(active.role)) {
+      throw new Error("Only an authorized care-team member can issue patient access.");
+    }
+    return api.issuePatientAccess(active.userId, active.patientId, {
+      contact_id: payload.contactId,
+      purpose: payload.purpose,
+      ttl_minutes: payload.ttlMinutes,
+    });
+  }
+
+  async function redeemPatientAccess(payload: {
+    claimToken: string;
+    recordNumber: string;
+    dateOfBirth: string;
+  }): Promise<PatientAccessProof> {
+    const active = actionContext.current;
+    if (!active.patientId) throw new Error("No active patient access context.");
+    const deviceBinding = "synthetic-browser-rehearsal-v1";
+    const grant = await api.redeemPatientAccess({
+      claim_token: payload.claimToken,
+      synthetic_record_number: payload.recordNumber,
+      date_of_birth: payload.dateOfBirth,
+      device_binding: deviceBinding,
+    });
+    const [sessionViewer, patientWorkspace] = await Promise.all([
+      api.patientSessionMe(grant.session_token, deviceBinding),
+      api.patientSessionWorkspace(grant.session_token, deviceBinding, grant.patient_id),
+    ]);
+    const scopeValid = sessionViewer.authentication_mode === "channel_claim"
+      && sessionViewer.role === "patient"
+      && sessionViewer.patient_id === active.patientId
+      && patientWorkspace.viewer.role === "patient"
+      && patientWorkspace.patient.id === active.patientId
+      && patientWorkspace.entries.every((entry) => entry.visibility === "patient");
+    if (!scopeValid) {
+      throw new Error("Patient access failed closed because the returned scope was not patient-only.");
+    }
+    return {
+      viewer: sessionViewer,
+      workspace: patientWorkspace,
+      grant_expires_at: grant.expires_at,
+      email_required: grant.email_required,
+    };
   }
 
   if (loading && !workspace) return <AppSkeleton />;
@@ -720,6 +785,7 @@ export default function App() {
               <div className="patient-actions">
                 {currentRole !== "patient" && <span className="live-sync"><i />Live evidence sync</span>}
                 {currentRole !== "patient" && <button className="secondary-button" onClick={() => { setReviewResult(null); setReviewOpen(true); }}><Sparkles size={16} />Evidence review</button>}
+                {["clinician", "staff"].includes(currentRole) && delivery?.contacts.some((contact) => contact.preferred && contact.active && contact.verified && contact.consent_status === "granted") && <button className="secondary-button" onClick={() => setPatientAccessOpen(true)}><KeyRound size={16} />Phone-only access</button>}
                 <button className="secondary-button" onClick={() => setScribeOpen(true)}><Mic size={16} />Capture consult</button>
                 {currentRole !== "admin" && <button className="primary-button" onClick={() => setNoteDialog({ open: true, entry: null })}><ClipboardPlus size={16} />{currentRole === "patient" ? "Share an insight" : "Add note"}</button>}
               </div>
@@ -794,6 +860,7 @@ export default function App() {
       {activeConflict && <ConflictReviewDialog conflict={activeConflict} role={currentRole} busy={conflictBusy} onClose={() => setActiveConflict(null)} onResolve={resolveActiveConflict} />}
       {editConflict && <ConcurrentEditDialog detail={editConflict.detail} onClose={() => setEditConflict(null)} onUseDraft={openReviewedMergeDraft} />}
       {regenerationEntry && <RegenerationDialog entry={regenerationEntry} onClose={() => setRegenerationEntry(null)} onRegenerate={regenerateProposal} />}
+      {patientAccessOpen && currentPatient && delivery?.contacts.find((contact) => contact.preferred && contact.active && contact.verified && contact.consent_status === "granted") && <PatientAccessDialog patient={currentPatient} contact={delivery.contacts.find((contact) => contact.preferred && contact.active && contact.verified && contact.consent_status === "granted")!} onClose={() => setPatientAccessOpen(false)} onIssue={issuePatientAccess} onRedeem={redeemPatientAccess} />}
       {reviewOpen && currentPatient && <ReviewCopilotDialog result={reviewResult} busy={reviewBusy} onClose={() => setReviewOpen(false)} onAsk={(question) => askEvidenceReview(question, currentPatient.id)} onSource={(spanId) => { setReviewOpen(false); void openSource(spanId); }} onTaskSource={(entryId) => { setReviewOpen(false); scrollToEntry(entryId); }} />}
       {toast && <div className="toast" role="status"><ShieldCheck size={17} />{toast}</div>}
     </div>

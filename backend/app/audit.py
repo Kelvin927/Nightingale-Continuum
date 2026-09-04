@@ -25,8 +25,13 @@ FORBIDDEN_METADATA_KEYS = {
     "transcript",
 }
 ALLOWED_METADATA_KEYS = {
+    "access_attempt_count",
+    "access_outcome",
+    "access_purpose",
+    "access_ttl_minutes",
     "answer_state",
     "assigned",
+    "authentication_mode",
     "claim_count",
     "capture_sequence",
     "channel",

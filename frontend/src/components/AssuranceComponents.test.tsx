@@ -635,3 +635,100 @@ test("scribe receipt labels deterministic degradation instead of implying AI suc
   expect(await screen.findByText(/AI provider failed \(provider_deadline_exceeded\)/i)).toBeVisible();
   expect(screen.getAllByText("rule only degraded")).toHaveLength(2);
 });
+
+test("stream review and finalization errors preserve the source-bound capture", async () => {
+  const onReviewStreamSignal = vi.fn().mockRejectedValue(new Error("Review service unavailable"));
+  const onFinalizeStream = vi.fn().mockRejectedValue("opaque finalization failure");
+  render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={vi.fn().mockResolvedValue({
+        ...streamingCapture,
+        ingestion: undefined,
+      })}
+      onReviewStreamSignal={onReviewStreamSignal}
+      onFinalizeStream={onFinalizeStream}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText("- ms")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /dismiss after source review/i }));
+  expect(await screen.findByText("Review service unavailable")).toBeVisible();
+  expect(onReviewStreamSignal).toHaveBeenCalledWith(
+    streamingCapture.id,
+    streamingCapture.safety_signals[0].id,
+    "dismiss",
+  );
+  fireEvent.click(screen.getByRole("button", { name: /finalize evidence-safe draft/i }));
+  expect(await screen.findByText("Finalization failed.")).toBeVisible();
+});
+
+test("opaque signal failures and a finalized no-provider capture are explicit", async () => {
+  const onReviewStreamSignal = vi.fn().mockRejectedValue("opaque review failure");
+  const finalizedWithoutProvider: StreamingCapture = {
+    ...streamingCapture,
+    status: "finalized",
+    finalized_entry_id: "entry-rule-only",
+    finalized_at: "2026-09-05T10:03:00Z",
+  };
+  const first = render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={vi.fn().mockResolvedValue(streamingCapture)}
+      onReviewStreamSignal={onReviewStreamSignal}
+      onFinalizeStream={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  await screen.findByText("Possible penicillin allergy");
+  fireEvent.click(screen.getByRole("button", { name: /confirm with patient/i }));
+  expect(await screen.findByText("Signal review failed.")).toBeVisible();
+  first.unmount();
+
+  render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={vi.fn().mockResolvedValue(finalizedWithoutProvider)}
+      onReviewStreamSignal={vi.fn()}
+      onFinalizeStream={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText(/provider not invoked/i)).toBeVisible();
+});
+
+test("opaque stream adapter failures use a stable fallback", async () => {
+  render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={vi.fn().mockRejectedValue("opaque adapter failure")}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText("Streaming rehearsal failed.")).toBeVisible();
+});
+
+test("ordinary finalization errors are shown without replacing the streaming record", async () => {
+  render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={vi.fn().mockResolvedValue(streamingCapture)}
+      onReviewStreamSignal={vi.fn()}
+      onFinalizeStream={vi.fn().mockRejectedValue(new Error("Finalizer unavailable"))}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  await screen.findByText("Possible penicillin allergy");
+  fireEvent.click(screen.getByRole("button", { name: /finalize evidence-safe draft/i }));
+  expect(await screen.findByText("Finalizer unavailable")).toBeVisible();
+});

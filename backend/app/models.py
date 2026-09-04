@@ -317,6 +317,50 @@ class PatientContact(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class PatientAccessClaim(Base):
+    __tablename__ = "patient_access_claims"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_patient_access_claim_token"),
+        Index("ix_patient_access_claim_contact_created", "contact_id", "created_at"),
+        Index("ix_patient_access_claim_clinic_patient", "clinic_id", "patient_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    contact_id: Mapped[str] = mapped_column(ForeignKey("patient_contacts.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="issued")
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    issued_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class PatientAccessGrant(Base):
+    __tablename__ = "patient_access_grants"
+    __table_args__ = (
+        UniqueConstraint("session_token_hash", name="uq_patient_access_grant_token"),
+        Index("ix_patient_access_grant_clinic_patient", "clinic_id", "patient_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    clinic_id: Mapped[str] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    access_claim_id: Mapped[str] = mapped_column(
+        ForeignKey("patient_access_claims.id"), nullable=False
+    )
+    session_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    device_binding_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class OutboundDelivery(Base):
     __tablename__ = "outbound_deliveries"
     __table_args__ = (

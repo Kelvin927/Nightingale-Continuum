@@ -44,6 +44,20 @@ test("patient projection excludes internal and raw AI content", async ({ page })
   ).toBeVisible();
 });
 
+test("phone-only access creates a device-bound patient projection without email", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Phone-only access" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("No email dependency")).toBeVisible();
+  await dialog.getByRole("button", { name: "Create one-time access claim" }).click();
+  await expect(dialog.getByText(/No message was sent in this synthetic rehearsal/i)).toBeVisible();
+  await dialog.getByRole("button", { name: "Verify and open patient view" }).click();
+  await expect(dialog.getByText("Authenticated without email")).toBeVisible();
+  await expect(dialog.getByText("channel claim", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("no", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/patient-visible longitudinal projection/i)).toBeVisible();
+});
+
 test("mobile layout preserves the glance and role navigation @mobile", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "What needs attention now" })).toBeVisible();

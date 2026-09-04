@@ -8,12 +8,14 @@ const e2eApiPort = Number(process.env.NIGHTINGALE_E2E_API_PORT ?? "18000");
 const e2eWebPort = Number(process.env.NIGHTINGALE_E2E_WEB_PORT ?? "18001");
 const e2eApiUrl = `http://127.0.0.1:${e2eApiPort}`;
 const e2eWebUrl = `http://127.0.0.1:${e2eWebPort}`;
+const e2ePython = process.env.NIGHTINGALE_E2E_PYTHON ?? "../.venv/bin/python";
 
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
+  workers: 1,
   forbidOnly: true,
   retries: 1,
   reporter: [
@@ -37,7 +39,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `NIGHTINGALE_DATABASE_URL='${e2eDatabaseUrl}' PYTHONPATH=../backend ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port ${e2eApiPort}`,
+      command: `NIGHTINGALE_DATABASE_URL='${e2eDatabaseUrl}' PYTHONPATH=../backend '${e2ePython}' -m uvicorn app.main:app --host 127.0.0.1 --port ${e2eApiPort}`,
       cwd: ".",
       url: `${e2eApiUrl}/health`,
       reuseExistingServer: false,

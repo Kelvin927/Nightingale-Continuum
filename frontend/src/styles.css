@@ -393,6 +393,54 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .version-item > code { display: block; margin-top: 7px; color: #94a09d; font-size: 7px; }
 .dialog-loading { min-height: 160px; display: grid; place-items: center; color: var(--muted); font-size: 10px; }
 
+.access-contract-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.access-contract-grid > div { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-content: start; min-width: 0; padding: 11px; color: #3d625b; background: #eaf2ed; border: 1px solid #d6e4dc; border-radius: 9px; }
+.access-contract-grid svg { grid-row: 1 / 3; width: 16px; height: 16px; color: var(--teal); }
+.access-contract-grid strong { font-size: 8.5px; }
+.access-contract-grid span { color: #6b7e79; font-size: 7.5px; line-height: 1.45; }
+.access-step { display: grid; gap: 13px; margin-top: 16px; }
+.access-step-heading { display: flex; align-items: flex-start; gap: 9px; }
+.access-step-heading > span, .access-step-heading > svg { width: 22px; height: 22px; display: grid; flex: 0 0 auto; place-items: center; color: #fff; background: var(--teal); border-radius: 50%; font-size: 8px; font-weight: 850; }
+.access-step-heading > svg { padding: 4px; }
+.access-step-heading.complete > svg { background: var(--success); }
+.access-step-heading > div { display: grid; gap: 2px; }
+.access-step-heading strong { color: #304b47; font: 600 11px Georgia, serif; }
+.access-step-heading small { color: #788984; font-size: 8px; line-height: 1.45; }
+.access-issue-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 9px; }
+.access-issue-grid > label, .access-verification-grid label { display: grid; gap: 5px; color: #536b67; font-size: 8px; font-weight: 800; }
+.access-issue-grid select, .access-verification-grid input { width: 100%; min-height: 38px; padding: 8px 9px; color: #304946; background: #fafbf8; border: 1px solid #d9e2dc; border-radius: 8px; font-size: 9px; }
+.access-route-card { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 7px 9px; color: var(--teal); background: #f2f7f3; border: 1px solid #d5e2da; border-radius: 8px; }
+.access-route-card > svg { width: 16px; height: 16px; }
+.access-route-card > svg:last-child { width: 13px; height: 13px; margin-left: auto; color: var(--success); }
+.access-route-card span { display: grid; min-width: 0; text-transform: capitalize; }
+.access-route-card strong { color: #3a5752; font-size: 8px; }
+.access-route-card small { overflow: hidden; color: #758680; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.access-demo-token { display: grid; gap: 5px; padding: 11px; color: #65572d; background: #faf3de; border: 1px solid #eadbb4; border-radius: 9px; }
+.access-demo-token span { font-size: 7px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.access-demo-token code { overflow-wrap: anywhere; color: #56491f; font-size: 9px; }
+.access-demo-token small { color: #7b704e; font-size: 7.5px; line-height: 1.45; }
+.access-verification-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.access-expiry { display: flex; align-items: center; gap: 6px; color: #71827e; font-size: 7.5px; }
+.access-expiry svg { width: 13px; height: 13px; }
+.access-proof { display: grid; gap: 13px; margin-top: 16px; }
+.access-proof-heading { display: flex; align-items: center; gap: 9px; padding: 12px; color: #286553; background: #e3f1ea; border: 1px solid #cce4d8; border-radius: 10px; }
+.access-proof-heading > svg { flex: 0 0 auto; }
+.access-proof-heading div { display: grid; gap: 2px; }
+.access-proof-heading strong { font: 600 12px Georgia, serif; }
+.access-proof-heading span { color: #5d786f; font-size: 8px; }
+.access-proof dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 0; }
+.access-proof dl > div { min-width: 0; padding: 9px; background: #f3f6f2; border-radius: 8px; }
+.access-proof dt { color: #81908c; font-size: 6.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.access-proof dd { overflow: hidden; margin: 3px 0 0; color: #3d5c56; font-size: 8px; font-weight: 750; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.access-projection { padding: 11px; background: #f7f9f6; border: 1px solid #e0e6e1; border-radius: 9px; }
+.access-projection > span { display: block; color: #74847f; font-size: 7px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+.access-projection > strong { display: block; margin-top: 4px; color: #34534d; font: 600 11px Georgia, serif; }
+.access-projection ul { display: grid; gap: 6px; margin: 9px 0 0; padding: 0; list-style: none; }
+.access-projection li { display: flex; align-items: center; gap: 6px; color: #536c67; font-size: 8px; }
+.access-projection li svg { width: 12px; height: 12px; color: var(--success); }
+.access-projection p, .access-boundary { margin: 8px 0 0; color: #72827e; font-size: 8px; line-height: 1.5; }
+.access-boundary { margin: 0; padding-top: 11px; border-top: 1px solid var(--line); }
+
 .conflict-review-intro { display: flex; align-items: flex-start; gap: 9px; margin-top: 16px; padding: 11px; color: #674137; background: #fbefe9; border: 1px solid #ecd6cb; border-radius: 9px; }
 .conflict-review-intro svg { flex: 0 0 auto; margin-top: 1px; }
 .conflict-review-intro div { display: grid; gap: 4px; }
@@ -659,6 +707,8 @@ button:disabled { cursor: wait; opacity: 0.58; }
   .merge-version-grid { grid-template-columns: 1fr; }
   .merge-version-panel pre { height: 84px; }
   .preservation-counts { grid-template-columns: 1fr 1fr; }
+  .access-contract-grid, .access-issue-grid { grid-template-columns: 1fr; }
+  .access-proof dl { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -689,6 +739,7 @@ button:disabled { cursor: wait; opacity: 0.58; }
   .metric-grid, .assumption-panel ol { grid-template-columns: 1fr; }
   .evidence-grid { grid-template-columns: 1fr; }
   .receipt-counts { flex-wrap: wrap; justify-content: center; }
+  .access-verification-grid, .access-proof dl { grid-template-columns: 1fr; }
   .review-query label > div, .review-claims, .review-actions { grid-template-columns: 1fr; }
   .toast { right: 12px; bottom: 12px; left: 12px; }
 }

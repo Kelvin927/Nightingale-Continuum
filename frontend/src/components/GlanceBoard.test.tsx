@@ -239,3 +239,25 @@ test("renders empty assurances and exposes overflow navigation", () => {
   expect(screen.getByText("No lower-priority watch items")).toBeVisible();
   expect(screen.getByText("No open handoffs")).toBeVisible();
 });
+
+test("missing optional shadow feedback is displayed as a neutral zero", () => {
+  const source = fullGlance.groups.act_now[0];
+  render(
+    <GlanceBoard
+      glance={{
+        ...fullGlance,
+        groups: {
+          ...fullGlance.groups,
+          act_now: [{ ...source, shadow_score_factors: undefined as never }],
+        },
+      }}
+      role="clinician"
+      busyHighlight={null}
+      onSource={vi.fn()}
+      onFeedback={vi.fn()}
+      onTaskSource={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getAllByText("Why this order")[0]);
+  expect(screen.getAllByText(/Bounded feedback 0\.00/i)[0]).toBeVisible();
+});

@@ -60,3 +60,12 @@ test("short transcripts are blocked before submission", () => {
   });
   expect(screen.getByRole("button", { name: /create separate proposal/i })).toBeDisabled();
 });
+
+test("opaque regeneration failures use the fail-closed message", async () => {
+  const onRegenerate = vi.fn().mockRejectedValue("opaque failure");
+  render(
+    <RegenerationDialog entry={aiEntry} onClose={vi.fn()} onRegenerate={onRegenerate} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /create separate proposal/i }));
+  expect(await screen.findByText("Regeneration failed safely.")).toBeVisible();
+});

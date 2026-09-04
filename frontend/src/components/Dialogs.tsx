@@ -258,12 +258,13 @@ export function ScribeDialog({
     try { setResult(await onSubmit(interactionType, transcript)); } finally { setBusy(false); }
   }
 
-  async function runStreamScenario() {
-    if (!onRunStreamScenario) return;
+  async function runStreamScenario(
+    run: NonNullable<typeof onRunStreamScenario>,
+  ) {
     setStreamBusy(true);
     setStreamError(null);
     try {
-      setStreamResult(await onRunStreamScenario(interactionType));
+      setStreamResult(await run(interactionType));
     } catch (reason) {
       setStreamError(reason instanceof Error ? reason.message : "Streaming rehearsal failed.");
     } finally {
@@ -271,12 +272,16 @@ export function ScribeDialog({
     }
   }
 
-  async function reviewStreamSignal(signalId: string, decision: "confirm" | "dismiss") {
-    if (!onReviewStreamSignal || !streamResult) return;
+  async function reviewStreamSignal(
+    review: NonNullable<typeof onReviewStreamSignal>,
+    capture: StreamingCapture,
+    signalId: string,
+    decision: "confirm" | "dismiss",
+  ) {
     setStreamBusy(true);
     setStreamError(null);
     try {
-      setStreamResult(await onReviewStreamSignal(streamResult.id, signalId, decision));
+      setStreamResult(await review(capture.id, signalId, decision));
     } catch (reason) {
       setStreamError(reason instanceof Error ? reason.message : "Signal review failed.");
     } finally {
@@ -284,12 +289,14 @@ export function ScribeDialog({
     }
   }
 
-  async function finalizeStream() {
-    if (!onFinalizeStream || !streamResult) return;
+  async function finalizeStream(
+    finalize: NonNullable<typeof onFinalizeStream>,
+    capture: StreamingCapture,
+  ) {
     setStreamBusy(true);
     setStreamError(null);
     try {
-      setStreamResult(await onFinalizeStream(streamResult.id));
+      setStreamResult(await finalize(capture.id));
     } catch (reason) {
       setStreamError(reason instanceof Error ? reason.message : "Finalization failed.");
     } finally {
@@ -315,7 +322,7 @@ export function ScribeDialog({
               </div>
               <p>Inject a Malay-English-Hokkien segment at 02:00. Supported words can raise a provisional safety signal while unsupported Hokkien is withheld from downstream AI.</p>
               {!streamResult ? (
-                <button className="secondary-button" disabled={streamBusy} onClick={runStreamScenario}>
+                <button className="secondary-button" disabled={streamBusy} onClick={() => runStreamScenario(onRunStreamScenario)}>
                   <Radio size={15} />{streamBusy ? "Injecting segments..." : "Run trilingual stream rehearsal"}
                 </button>
               ) : (
@@ -338,17 +345,17 @@ export function ScribeDialog({
                       <div><AlertTriangle size={17} /><span><strong>Possible {signal.normalized_label} allergy</strong><small>Critical floor · {signal.review_state.replaceAll("_", " ")}</small></span></div>
                       <blockquote>“{signal.evidence_quote}”</blockquote>
                       <p>Source-bound provisional evidence, not a confirmed clinical fact.</p>
-                      {signal.review_state === "provisional" && role === "clinician" && (
+                      {signal.review_state === "provisional" && role === "clinician" && onReviewStreamSignal && (
                         <div className="signal-actions">
-                          <button disabled={streamBusy} onClick={() => reviewStreamSignal(signal.id, "dismiss")}>Dismiss after source review</button>
-                          <button className="primary-button" disabled={streamBusy} onClick={() => reviewStreamSignal(signal.id, "confirm")}><CheckCircle2 size={14} />Confirm with patient</button>
+                          <button disabled={streamBusy} onClick={() => reviewStreamSignal(onReviewStreamSignal, streamResult, signal.id, "dismiss")}>Dismiss after source review</button>
+                          <button className="primary-button" disabled={streamBusy} onClick={() => reviewStreamSignal(onReviewStreamSignal, streamResult, signal.id, "confirm")}><CheckCircle2 size={14} />Confirm with patient</button>
                         </div>
                       )}
                     </article>
                   ))}
                   <div className="stream-boundary"><ShieldCheck size={15} /><span>{streamResult.assurance_boundary}</span></div>
                   {streamResult.status === "streaming" && onFinalizeStream ? (
-                    <button className="secondary-button" disabled={streamBusy} onClick={finalizeStream}><Bot size={15} />{streamBusy ? "Finalizing..." : "Finalize evidence-safe draft"}</button>
+                    <button className="secondary-button" disabled={streamBusy} onClick={() => finalizeStream(onFinalizeStream, streamResult)}><Bot size={15} />{streamBusy ? "Finalizing..." : "Finalize evidence-safe draft"}</button>
                   ) : (
                     <div className="stream-finalized"><CheckCircle2 size={15} /><span>Finalized with explicit abstention · provider {streamResult.provider_status ?? "not invoked"}</span></div>
                   )}

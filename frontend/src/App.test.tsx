@@ -22,6 +22,10 @@ vi.mock("./api", () => {
       glance: vi.fn(),
       delta: vi.fn(),
       deliveryReadiness: vi.fn(),
+      issuePatientAccess: vi.fn(),
+      redeemPatientAccess: vi.fn(),
+      patientSessionMe: vi.fn(),
+      patientSessionWorkspace: vi.fn(),
       queueDelivery: vi.fn(),
       queueCorrection: vi.fn(),
       transitionDelivery: vi.fn(),
@@ -35,6 +39,11 @@ vi.mock("./api", () => {
       createThread: vi.fn(),
       ingestScribe: vi.fn(),
       regenerateScribe: vi.fn(),
+      startCapture: vi.fn(),
+      appendCaptureSegment: vi.fn(),
+      reviewSafetySignal: vi.fn(),
+      capture: vi.fn(),
+      finalizeCapture: vi.fn(),
       evidenceReview: vi.fn(),
       policyEvaluation: vi.fn(),
       auditVerification: vi.fn(),
@@ -65,7 +74,7 @@ import {
   viewer,
   workspace,
 } from "./test/fixtures";
-import type { Role, VersionConflictDetail } from "./types";
+import type { DeliveryItem, Role, StreamingCapture, VersionConflictDetail } from "./types";
 
 const mockedApi = vi.mocked(api);
 
@@ -82,6 +91,95 @@ function deferred<T>() {
 function roleFor(userId: string): Role {
   return identities.find((identity) => identity.id === userId)?.role ?? "clinician";
 }
+
+const streamingCapture: StreamingCapture = {
+  id: "capture-stream-1",
+  patient_id: patient.id,
+  interaction_type: "doctor_consult",
+  status: "streaming",
+  latest_sequence: 2,
+  stream_contract_version: "2026-09-01",
+  capabilities: {
+    adapter_mode: "provider_neutral_segment_event_contract",
+    audio_transcription_active: false,
+    clinic_enabled_languages: ["en-SG", "ms-SG", "zh-SG"],
+    provider_supported_language_bases: ["en", "ms", "zh"],
+    provider_supported_language_tags: ["en-sg", "ms-sg", "zh-sg"],
+    unsupported_language_policy: "abstain_and_request_human_transcription",
+    speaker_attribution: "adapter_supplied_label_not_biometric_identity",
+    quality_policy: "segment_scores_visible_and_fail_closed",
+  },
+  segments: [{
+    id: "segment-2",
+    sequence: 2,
+    chunk_id: "chunk-2",
+    start_ms: 120_000,
+    end_ms: 123_000,
+    speaker_label: "patient",
+    text: "Saya allergic to penicillin, bo pian.",
+    language_spans: [
+      { language_tag: "ms-SG", start_offset: 0, end_offset: 5, confidence: 0.93 },
+      { language_tag: "en-SG", start_offset: 5, end_offset: 29, confidence: 0.96 },
+      { language_tag: "nan", start_offset: 29, end_offset: 37, confidence: 0.84 },
+    ],
+    asr_confidence: 0.91,
+    audio_quality: 0.86,
+    processing_state: "abstained",
+    processing_reasons: ["unsupported_provider_language:nan"],
+    status: "provisional",
+    correction_of_segment_id: null,
+    received_at: "2026-09-05T10:02:00Z",
+  }],
+  safety_signals: [{
+    id: "signal-1",
+    source_segment_id: "segment-2",
+    signal_type: "allergy_mention",
+    normalized_label: "penicillin",
+    evidence_quote: "allergic to penicillin",
+    source_start_offset: 5,
+    source_end_offset: 27,
+    severity: "critical",
+    evidence_quality: "adapter_supported_unconfirmed",
+    review_state: "provisional",
+    review_rationale: null,
+    reviewed_by: null,
+    detected_at: "2026-09-05T10:02:00Z",
+    reviewed_at: null,
+  }],
+  safety_signal_count: 1,
+  finalized_entry_id: null,
+  provider_status: null,
+  provider_failure_code: null,
+  started_at: "2026-09-05T10:00:00Z",
+  finalized_at: null,
+  assurance_boundary: "Synthetic segment adapter only; no live ASR claim.",
+  ingestion: {
+    segment_id: "segment-2",
+    replayed: false,
+    new_safety_signal_ids: ["signal-1"],
+    server_processing_ms: 4.2,
+    latency_scope: "API processing only",
+  },
+};
+
+const staleDelivery: DeliveryItem = {
+  id: "delivery-stale",
+  source_entry_id: patientInstruction.id,
+  source_version_id: "version-sent-1",
+  source_is_current: false,
+  correction_for_id: null,
+  channel: "whatsapp",
+  masked_destination: "WhatsApp ending 4567",
+  content_snapshot: "Take lisinopril 10 mg daily.",
+  content_hash: "c".repeat(64),
+  status: "delivered",
+  receipt_meaning: "Provider delivery receipt recorded.",
+  attempt_count: 1,
+  created_at: "2026-09-05T09:00:00Z",
+  accepted_at: "2026-09-05T09:01:00Z",
+  delivered_at: "2026-09-05T09:02:00Z",
+  superseded_at: null,
+};
 
 function configureSuccessApi() {
   mockedApi.identities.mockResolvedValue({ warning: "Synthetic identities", identities });
@@ -108,6 +206,36 @@ function configureSuccessApi() {
   );
   mockedApi.delta.mockResolvedValue(delta);
   mockedApi.deliveryReadiness.mockResolvedValue(deliveryReadiness);
+  mockedApi.issuePatientAccess.mockResolvedValue({
+    claim_id: "claim-1",
+    patient_id: patient.id,
+    channel: "whatsapp",
+    masked_destination: "WhatsApp ending 4567",
+    purpose: "portal_access",
+    status: "issued",
+    expires_at: "2026-08-26T12:10:00Z",
+    delivery_state: "synthetic_rehearsal_not_sent",
+    demo_claim_token: "synthetic-claim-secret",
+    security_note: "Synthetic rehearsal only.",
+  });
+  mockedApi.redeemPatientAccess.mockResolvedValue({
+    session_token: "synthetic-session-secret",
+    expires_at: "2026-08-26T12:30:00Z",
+    patient_id: patient.id,
+    user_id: "user-patient",
+    authentication_mode: "channel_claim",
+    email_required: false,
+  });
+  mockedApi.patientSessionMe.mockResolvedValue({
+    ...viewer("patient"),
+    authentication_mode: "channel_claim",
+  });
+  mockedApi.patientSessionWorkspace.mockResolvedValue({
+    ...workspace,
+    viewer: { id: "user-patient", role: "patient" },
+    entries: [patientInstruction],
+    conflicts: [],
+  });
   mockedApi.queueDelivery.mockResolvedValue(deliveryReadiness);
   mockedApi.queueCorrection.mockResolvedValue(deliveryReadiness);
   mockedApi.transitionDelivery.mockResolvedValue(deliveryReadiness);
@@ -172,6 +300,24 @@ function configureSuccessApi() {
       meaning: "A new AI proposal was created; protected human state was not modified.",
     },
   });
+  mockedApi.startCapture.mockResolvedValue(streamingCapture);
+  mockedApi.appendCaptureSegment.mockResolvedValue(streamingCapture);
+  mockedApi.reviewSafetySignal.mockResolvedValue(streamingCapture.safety_signals[0]);
+  mockedApi.capture.mockResolvedValue({
+    ...streamingCapture,
+    safety_signals: [{
+      ...streamingCapture.safety_signals[0],
+      review_state: "dismissed",
+      review_rationale: "Dismissed after source review.",
+    }],
+  });
+  mockedApi.finalizeCapture.mockResolvedValue({
+    ...streamingCapture,
+    status: "finalized_with_abstention",
+    finalized_entry_id: "entry-stream-draft",
+    provider_status: "live",
+    finalized_at: "2026-09-05T10:03:00Z",
+  });
   mockedApi.evidenceReview.mockResolvedValue(evidenceReview);
   mockedApi.policyEvaluation.mockResolvedValue(evaluation);
   mockedApi.auditVerification.mockResolvedValue(verification);
@@ -199,6 +345,33 @@ const FULL_CLINICIAN_WORKFLOW_TIMEOUT_MS = 15_000;
 
 test("clinician workflow completes evidence review, provenance, notes, threads, history, scribe, and role switching", async () => {
   await renderFor("user-clinician");
+
+  fireEvent.click(screen.getByRole("button", { name: /phone-only access/i }));
+  fireEvent.click(screen.getByRole("button", { name: /create one-time access claim/i }));
+  expect(await screen.findByText("synthetic-claim-secret")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /verify and open patient view/i }));
+  expect(await screen.findByText("Authenticated without email")).toBeVisible();
+  expect(mockedApi.issuePatientAccess).toHaveBeenCalledWith(
+    "user-clinician",
+    patient.id,
+    { contact_id: "contact-whatsapp", purpose: "portal_access", ttl_minutes: 10 },
+  );
+  expect(mockedApi.redeemPatientAccess).toHaveBeenCalledWith({
+    claim_token: "synthetic-claim-secret",
+    synthetic_record_number: patient.synthetic_record_number,
+    date_of_birth: patient.date_of_birth,
+    device_binding: "synthetic-browser-rehearsal-v1",
+  });
+  expect(mockedApi.patientSessionMe).toHaveBeenCalledWith(
+    "synthetic-session-secret",
+    "synthetic-browser-rehearsal-v1",
+  );
+  expect(mockedApi.patientSessionWorkspace).toHaveBeenCalledWith(
+    "synthetic-session-secret",
+    "synthetic-browser-rehearsal-v1",
+    patient.id,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /return to clinician view/i }));
 
   fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
   expect(screen.getByText("Navigate")).toBeVisible();
@@ -366,6 +539,92 @@ test("admin workflow verifies audit integrity and runs retention with a refreshe
   await waitFor(() => expect(mockedApi.auditEvents).toHaveBeenCalledTimes(2));
 });
 
+test("an unresolved contradiction is escalated without silently choosing an assertion", async () => {
+  await renderFor("user-clinician");
+  fireEvent.click(screen.getByRole("button", { name: /compare both sources/i }));
+  const dialog = screen.getByRole("dialog");
+  fireEvent.click(within(dialog).getByLabelText(/reviewed both immutable source versions/i));
+  fireEvent.change(within(dialog).getByLabelText(/clinical rationale/i), {
+    target: { value: "Neither source is sufficient; reconcile against the dispensing record." },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: /escalate unresolved/i }));
+  await waitFor(() => expect(mockedApi.resolveConflict).toHaveBeenCalledWith(
+    "user-clinician",
+    workspace.conflicts[0].id,
+    "escalate_unresolved",
+    "Neither source is sufficient; reconcile against the dispensing record.",
+    true,
+  ));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Contradiction preserved and escalated",
+  );
+});
+
+test("a clinician can queue an immutable correction and correction failures stay visible", async () => {
+  const readiness = { ...deliveryReadiness, deliveries: [staleDelivery] };
+  mockedApi.deliveryReadiness.mockResolvedValue(readiness);
+  mockedApi.queueCorrection.mockResolvedValueOnce(readiness);
+  await renderFor("user-clinician");
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  fireEvent.click(screen.getByLabelText(/verified every medication and dose/i));
+  fireEvent.click(screen.getByRole("button", { name: /queue current version as correction/i }));
+  await waitFor(() => expect(mockedApi.queueCorrection).toHaveBeenCalledWith(
+    "user-clinician",
+    staleDelivery.id,
+    expect.objectContaining({
+      replacement_entry_id: patientInstruction.id,
+      contact_id: "contact-whatsapp",
+      expected_version: patientInstruction.current_version,
+      confirm_clinical_review: true,
+      confirm_patient_identity: true,
+      confirm_medication_and_dose: true,
+    }),
+  ));
+  expect(await screen.findByRole("status")).toHaveTextContent("Correction queued");
+
+  mockedApi.queueCorrection.mockRejectedValueOnce(new Error("Correction queue unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: /queue current version as correction/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Correction queue unavailable");
+});
+
+test("delivery queue failures remain explicit and do not fabricate a queued copy", async () => {
+  mockedApi.queueDelivery.mockRejectedValueOnce(new Error("Delivery queue unavailable"));
+  await renderFor("user-clinician");
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  fireEvent.click(screen.getByLabelText(/verified every medication and dose/i));
+  fireEvent.click(screen.getByRole("button", { name: /queue approved copy/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Delivery queue unavailable");
+});
+
+test("admin receipt simulation separates acceptance, delivery, and provider failure", async () => {
+  const queued = { ...staleDelivery, id: "delivery-queued", status: "queued" as const };
+  const accepted = { ...staleDelivery, id: "delivery-accepted", status: "accepted" as const };
+  const readiness = { ...deliveryReadiness, deliveries: [queued, accepted] };
+  mockedApi.deliveryReadiness.mockResolvedValue(readiness);
+  mockedApi.transitionDelivery.mockResolvedValue(readiness);
+  await renderFor("user-admin");
+
+  fireEvent.click(screen.getByRole("button", { name: /record synthetic provider acceptance/i }));
+  await waitFor(() => expect(mockedApi.transitionDelivery).toHaveBeenCalledWith(
+    "user-admin",
+    queued.id,
+    { outcome: "accepted", provider_message_id: `synthetic-${queued.id}` },
+  ));
+  expect(await screen.findByRole("status")).toHaveTextContent("Provider acceptance recorded");
+  fireEvent.click(screen.getByRole("button", { name: /record synthetic delivery receipt/i }));
+  await waitFor(() => expect(mockedApi.transitionDelivery).toHaveBeenCalledWith(
+    "user-admin",
+    accepted.id,
+    { outcome: "delivered" },
+  ));
+
+  mockedApi.transitionDelivery.mockRejectedValueOnce(new Error("Provider receipt unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: /record synthetic provider acceptance/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Provider receipt unavailable");
+});
+
 test("concurrent edits become a three-way reviewed draft before a fresh save", async () => {
   await renderFor("user-clinician");
   const conflictDetail: VersionConflictDetail = {
@@ -426,6 +685,28 @@ test("concurrent edits become a three-way reviewed draft before a fresh save", a
   ));
 });
 
+test("ordinary and malformed edit conflicts are rethrown to the authoring dialog", async () => {
+  await renderFor("user-clinician");
+  const clinicalCard = screen.getByRole("article", { name: /assessment and plan/i });
+  fireEvent.click(within(clinicalCard).getByRole("button", { name: /edit section/i }));
+  mockedApi.editEntry
+    .mockRejectedValueOnce(new Error("Edit service unavailable"))
+    .mockRejectedValueOnce(new ApiError(409, null))
+    .mockRejectedValueOnce(new ApiError(409, "malformed conflict"))
+    .mockRejectedValueOnce(new ApiError(409, {}));
+
+  for (const message of [
+    "Edit service unavailable",
+    "Request failed with status 409",
+    "malformed conflict",
+    "Request failed with status 409",
+  ]) {
+    fireEvent.click(screen.getByRole("button", { name: /save version/i }));
+    expect(await screen.findByText(message)).toBeVisible();
+  }
+  expect(screen.queryByRole("heading", { name: "Concurrent edit review" })).toBeNull();
+});
+
 test("AI regeneration creates a separate proposal and renders its preservation receipt", async () => {
   await renderFor("user-clinician");
   const aiCard = screen.getByRole("article", { name: /ai consult draft/i });
@@ -443,6 +724,42 @@ test("AI regeneration creates a separate proposal and renders its preservation r
   ));
   expect(await screen.findByText("Protected state unchanged")).toBeVisible();
   expect(await screen.findByRole("status")).toHaveTextContent("separate AI proposal");
+});
+
+test("streaming safety callbacks preserve code-switching evidence through review and finalization", async () => {
+  await renderFor("user-clinician");
+  fireEvent.click(screen.getByRole("button", { name: /capture consult/i }));
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText("Possible penicillin allergy")).toBeVisible();
+  expect(mockedApi.startCapture).toHaveBeenCalledWith(
+    "user-clinician",
+    patient.id,
+    "doctor_consult",
+  );
+  expect(mockedApi.appendCaptureSegment).toHaveBeenCalledTimes(2);
+  expect(mockedApi.appendCaptureSegment).toHaveBeenNthCalledWith(
+    2,
+    "user-clinician",
+    streamingCapture.id,
+    expect.objectContaining({
+      sequence: 2,
+      text: "Saya allergic to penicillin, bo pian.",
+      speaker_label: "patient",
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /dismiss after source review/i }));
+  await waitFor(() => expect(mockedApi.reviewSafetySignal).toHaveBeenCalledWith(
+    "user-clinician",
+    "signal-1",
+    "dismiss",
+    "Dismissed after clinician review of the source interaction.",
+  ));
+  fireEvent.click(screen.getByRole("button", { name: /finalize evidence-safe draft/i }));
+  await waitFor(() => expect(mockedApi.finalizeCapture).toHaveBeenCalledWith(
+    "user-clinician",
+    streamingCapture.id,
+  ));
+  expect(await screen.findByText(/finalized with explicit abstention/i)).toBeVisible();
 });
 
 test("admin retention remains available without an assigned patient and skips care refresh", async () => {

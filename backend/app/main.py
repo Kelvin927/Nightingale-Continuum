@@ -16,6 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .access import (
+    AccessClaimError,
+    issue_access_claim,
+    redeem_access_claim,
+    resolve_patient_session,
+)
 from .audit import append_audit, verify_audit_chain
 from .capture import (
     CaptureContractError,
@@ -104,8 +110,10 @@ from .schemas import (
     EditEntryRequest,
     EvidenceReviewRequest,
     FeedbackRequest,
+    IssuePatientAccessClaimRequest,
     QueueCorrectionRequest,
     QueueDeliveryRequest,
+    RedeemPatientAccessClaimRequest,
     RegenerateScribeRequest,
     ResolveConflictRequest,
     ResolveThreadRequest,
@@ -150,8 +158,27 @@ SessionDep = Annotated[Session, Depends(get_session)]
 def get_actor(
     session: SessionDep,
     x_demo_user: Annotated[str | None, Header(alias="X-Demo-User")] = None,
+    x_patient_session: Annotated[str | None, Header(alias="X-Patient-Session")] = None,
+    x_patient_device: Annotated[str | None, Header(alias="X-Patient-Device")] = None,
 ) -> User:
-    return resolve_actor(session, x_demo_user)
+    if x_demo_user and x_patient_session:
+        raise HTTPException(status_code=401, detail="Choose exactly one authentication mode")
+    if x_patient_session:
+        try:
+            actor = resolve_patient_session(
+                session,
+                x_patient_session,
+                device_binding=x_patient_device or "",
+            )
+        except AccessClaimError as exc:
+            raise HTTPException(status_code=401, detail="Invalid patient session") from exc
+        session.info["authentication_mode"] = "channel_claim"
+        return actor
+    if x_patient_device:
+        raise HTTPException(status_code=401, detail="Invalid patient session")
+    actor = resolve_actor(session, x_demo_user)
+    session.info["authentication_mode"] = "demo_header"
+    return actor
 
 
 ActorDep = Annotated[User, Depends(get_actor)]
@@ -344,7 +371,13 @@ def create_app(
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
         allow_credentials=False,
         allow_methods=["GET", "POST", "PATCH"],
-        allow_headers=["Content-Type", "X-Demo-User", "X-Request-ID"],
+        allow_headers=[
+            "Content-Type",
+            "X-Demo-User",
+            "X-Patient-Session",
+            "X-Patient-Device",
+            "X-Request-ID",
+        ],
     )
 
     app.state.database = database
@@ -419,14 +452,88 @@ def create_app(
         }
 
     @app.get(f"{API_PREFIX}/me")
-    def me(actor: ActorDep) -> dict:
+    def me(session: SessionDep, actor: ActorDep) -> dict:
         return {
             "id": actor.id,
             "display_name": actor.display_name,
             "role": actor.role,
             "clinic_id": actor.clinic_id,
             "patient_id": actor.patient_id,
-            "authentication_mode": "demo_header",
+            "authentication_mode": session.info.get("authentication_mode", "unknown"),
+        }
+
+    @app.post(f"{API_PREFIX}/patients/{{patient_id}}/access-claims", status_code=201)
+    def patient_access_claim_issue(
+        patient_id: str,
+        payload: IssuePatientAccessClaimRequest,
+        session: SessionDep,
+        actor: ActorDep,
+    ) -> dict:
+        if actor.role not in {"staff", "clinician"}:
+            raise forbidden("access_claim_issuer_required")
+        patient = require_patient(session, actor, patient_id)
+        try:
+            issued = issue_access_claim(
+                session,
+                actor=actor,
+                patient=patient,
+                contact_id=payload.contact_id,
+                purpose=payload.purpose,
+                ttl_minutes=payload.ttl_minutes,
+            )
+        except AccessClaimError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": exc.code, "message": str(exc)},
+            ) from exc
+        session.commit()
+        return {
+            "claim_id": issued.claim.id,
+            "patient_id": issued.claim.patient_id,
+            "channel": issued.channel,
+            "masked_destination": issued.masked_destination,
+            "purpose": issued.claim.purpose,
+            "status": issued.claim.status,
+            "expires_at": _iso(issued.claim.expires_at),
+            "delivery_state": "synthetic_rehearsal_not_sent",
+            "demo_claim_token": issued.claim_token,
+            "security_note": (
+                "The plaintext token is returned only for this synthetic rehearsal. A production "
+                "adapter delivers it out of band and stores only its hash."
+            ),
+        }
+
+    @app.post(f"{API_PREFIX}/patient-access/redeem")
+    def patient_access_claim_redeem(
+        payload: RedeemPatientAccessClaimRequest,
+        session: SessionDep,
+    ) -> dict:
+        try:
+            redeemed = redeem_access_claim(
+                session,
+                claim_token=payload.claim_token,
+                synthetic_record_number=payload.synthetic_record_number,
+                date_of_birth=payload.date_of_birth,
+                device_binding=payload.device_binding,
+            )
+        except AccessClaimError as exc:
+            session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "access_claim_invalid",
+                    "message": "The access claim could not be verified",
+                },
+            ) from exc
+        session.commit()
+        return {
+            "session_token": redeemed.session_token,
+            "expires_at": _iso(redeemed.grant.expires_at),
+            "patient_id": redeemed.grant.patient_id,
+            "user_id": redeemed.actor.id,
+            "authentication_mode": "channel_claim",
+            "email_required": False,
         }
 
     @app.get(f"{API_PREFIX}/patients")

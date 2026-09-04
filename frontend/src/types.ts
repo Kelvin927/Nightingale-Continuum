@@ -163,6 +163,35 @@ export interface DeliveryReadiness {
   safety_contract: string;
 }
 
+export interface PatientAccessClaim {
+  claim_id: string;
+  patient_id: string;
+  channel: DeliveryContact["channel"];
+  masked_destination: string;
+  purpose: "portal_access" | "intake" | "summary" | "instructions";
+  status: "issued";
+  expires_at: string;
+  delivery_state: "synthetic_rehearsal_not_sent";
+  demo_claim_token: string;
+  security_note: string;
+}
+
+export interface PatientAccessGrant {
+  session_token: string;
+  expires_at: string;
+  patient_id: string;
+  user_id: string;
+  authentication_mode: "channel_claim";
+  email_required: false;
+}
+
+export interface PatientAccessProof {
+  viewer: Viewer;
+  workspace: Workspace;
+  grant_expires_at: string;
+  email_required: false;
+}
+
 export interface ConflictSource {
   state: "available" | "unavailable";
   version_id: string;

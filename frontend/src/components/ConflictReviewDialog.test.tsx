@@ -108,3 +108,26 @@ test("resolution failures remain actionable in the dialog", async () => {
   fireEvent.click(screen.getByRole("button", { name: /confirm assertion a/i }));
   expect(await screen.findByText("Decision service unavailable.")).toBeVisible();
 });
+
+test("unknown authors and opaque resolution failures use explicit fallbacks", async () => {
+  const onResolve = vi.fn().mockRejectedValue("opaque failure");
+  render(
+    <ConflictReviewDialog
+      conflict={{
+        ...openConflict,
+        left: { ...openConflict.left, author: null },
+      }}
+      role="clinician"
+      busy={false}
+      onClose={vi.fn()}
+      onResolve={onResolve}
+    />,
+  );
+  expect(screen.getByText(/Unknown author/)).toBeVisible();
+  fireEvent.click(screen.getByLabelText(/reviewed both immutable source versions/i));
+  fireEvent.change(screen.getByLabelText(/clinical rationale/i), {
+    target: { value: "Reviewed both available immutable assertions." },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /confirm assertion a/i }));
+  expect(await screen.findByText("Conflict review failed.")).toBeVisible();
+});

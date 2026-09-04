@@ -1,9 +1,17 @@
 import { render } from "@testing-library/react";
 import { axe } from "jest-axe";
 
-import { evidenceReview, glance, patientGlance, provenance } from "./test/fixtures";
+import {
+  deliveryReadiness,
+  evidenceReview,
+  glance,
+  patient,
+  patientGlance,
+  provenance,
+} from "./test/fixtures";
 import { GlanceBoard } from "./components/GlanceBoard";
 import { NoteDialog } from "./components/Dialogs";
+import { PatientAccessDialog } from "./components/PatientAccessDialog";
 import { ProvenanceDrawer } from "./components/ProvenanceDrawer";
 import { ReviewCopilotDialog } from "./components/ReviewCopilot";
 
@@ -57,6 +65,20 @@ test("evidence review dialog has no axe-detectable accessibility violations", as
       onAsk={vi.fn()}
       onSource={vi.fn()}
       onTaskSource={vi.fn()}
+    />,
+  );
+  const results = await axe(view.container, noColorContrast);
+  expect(results.violations).toEqual([]);
+});
+
+test("phone-only access dialog has no axe-detectable accessibility violations", async () => {
+  const view = render(
+    <PatientAccessDialog
+      patient={patient}
+      contact={deliveryReadiness.contacts[0]}
+      onClose={vi.fn()}
+      onIssue={vi.fn()}
+      onRedeem={vi.fn()}
     />,
   );
   const results = await axe(view.container, noColorContrast);
