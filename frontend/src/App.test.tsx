@@ -123,6 +123,8 @@ function configureSuccessApi() {
     entry_id: "entry-scribe",
     status: "proposed",
     provider: "local-deterministic",
+    provider_status: "live",
+    provider_failure_code: null,
     redaction_receipt: {
       detector_version: "continuum-redactor-v1",
       entity_counts: { PERSON: 1 },

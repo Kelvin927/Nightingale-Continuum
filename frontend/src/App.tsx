@@ -51,6 +51,7 @@ import type {
   PolicyEvaluation,
   ResolvedProvenance,
   Role,
+  StreamingCapture,
   Viewer,
   Workspace,
 } from "./types";
@@ -359,7 +360,14 @@ export default function App() {
   async function submitScribe(interactionType: string, transcript: string) {
     const active = actionContext.current;
     if (!active.patientId || !active.scribeOpen) {
-      return { receipt: {}, flags: [], clinicalAnchorCount: 0, clinicalAnchorsPreserved: false };
+      return {
+        receipt: {},
+        flags: [],
+        clinicalAnchorCount: 0,
+        clinicalAnchorsPreserved: false,
+        providerStatus: "failed_closed",
+        providerFailureCode: "inactive_capture_context",
+      };
     }
     const payload = await api.ingestScribe(active.userId, {
       patient_id: active.patientId,
@@ -373,7 +381,103 @@ export default function App() {
       flags: payload.flags,
       clinicalAnchorCount: payload.redaction_receipt.clinical_anchor_count,
       clinicalAnchorsPreserved: payload.redaction_receipt.clinical_anchors_preserved,
+      providerStatus: payload.provider_status,
+      providerFailureCode: payload.provider_failure_code,
     };
+  }
+
+  async function runStreamingSafetyScenario(
+    interactionType: string,
+  ): Promise<StreamingCapture> {
+    const active = actionContext.current;
+    if (!active.patientId || !active.scribeOpen) {
+      throw new Error("No active patient capture context.");
+    }
+    const capture = await api.startCapture(
+      active.userId,
+      active.patientId,
+      interactionType,
+    );
+    const stamp = Date.now();
+    await api.appendCaptureSegment(active.userId, capture.id, {
+      chunk_id: `synthetic-intro-${stamp}`,
+      sequence: 1,
+      start_ms: 0,
+      end_ms: 2_400,
+      speaker_label: "clinician",
+      text: "How have you been since the dose change?",
+      language_spans: [
+        {
+          language_tag: "en-SG",
+          start_offset: 0,
+          end_offset: 40,
+          confidence: 0.97,
+        },
+      ],
+      asr_confidence: 0.95,
+      audio_quality: 0.92,
+      correction_of_segment_id: null,
+    });
+    const text = "Saya allergic to penicillin, bo pian.";
+    const englishStart = text.indexOf(" allergic");
+    const hokkienStart = text.indexOf("bo pian");
+    return api.appendCaptureSegment(active.userId, capture.id, {
+      chunk_id: `synthetic-safety-${stamp}`,
+      sequence: 2,
+      start_ms: 120_000,
+      end_ms: 123_000,
+      speaker_label: "patient",
+      text,
+      language_spans: [
+        {
+          language_tag: "ms-SG",
+          start_offset: 0,
+          end_offset: englishStart,
+          confidence: 0.93,
+        },
+        {
+          language_tag: "en-SG",
+          start_offset: englishStart,
+          end_offset: hokkienStart,
+          confidence: 0.96,
+        },
+        {
+          language_tag: "nan",
+          start_offset: hokkienStart,
+          end_offset: text.length,
+          confidence: 0.84,
+        },
+      ],
+      asr_confidence: 0.91,
+      audio_quality: 0.86,
+      correction_of_segment_id: null,
+    });
+  }
+
+  async function reviewStreamingSignal(
+    captureId: string,
+    signalId: string,
+    decision: "confirm" | "dismiss",
+  ): Promise<StreamingCapture> {
+    const active = actionContext.current;
+    await api.reviewSafetySignal(
+      active.userId,
+      signalId,
+      decision,
+      decision === "confirm"
+        ? "Confirmed directly with the patient during the consult."
+        : "Dismissed after clinician review of the source interaction.",
+    );
+    return api.capture(active.userId, captureId);
+  }
+
+  async function finalizeStreamingCapture(captureId: string): Promise<StreamingCapture> {
+    const active = actionContext.current;
+    const result = await api.finalizeCapture(active.userId, captureId);
+    if (active.patientId) {
+      await reload(active.userId, active.patientId, active.role);
+    }
+    return result;
   }
 
   async function askEvidenceReview(question: string, activePatientId: string) {
@@ -583,7 +687,7 @@ export default function App() {
       {noteDialog.open && <NoteDialog role={currentRole} editing={noteDialog.entry} onClose={() => setNoteDialog({ open: false, entry: null })} onSubmit={saveNote} />}
       {commentEntry && <CommentDialog entry={commentEntry} collaborator={collaborator} onClose={() => setCommentEntry(null)} onSubmit={startThread} />}
       {historyEntry && <HistoryDialog entry={historyEntry} versions={versions} loading={historyLoading} onClose={() => { setHistoryEntry(null); setVersions([]); }} onRevert={restoreVersion} />}
-      {scribeOpen && <ScribeDialog role={currentRole} onClose={() => setScribeOpen(false)} onSubmit={submitScribe} />}
+      {scribeOpen && <ScribeDialog role={currentRole} onClose={() => setScribeOpen(false)} onSubmit={submitScribe} onRunStreamScenario={runStreamingSafetyScenario} onReviewStreamSignal={reviewStreamingSignal} onFinalizeStream={finalizeStreamingCapture} />}
       {reviewOpen && currentPatient && <ReviewCopilotDialog result={reviewResult} busy={reviewBusy} onClose={() => setReviewOpen(false)} onAsk={(question) => askEvidenceReview(question, currentPatient.id)} onSource={(spanId) => { setReviewOpen(false); void openSource(spanId); }} onTaskSource={(entryId) => { setReviewOpen(false); scrollToEntry(entryId); }} />}
       {toast && <div className="toast" role="status"><ShieldCheck size={17} />{toast}</div>}
     </div>

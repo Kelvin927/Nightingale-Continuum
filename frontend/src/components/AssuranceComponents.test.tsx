@@ -13,6 +13,7 @@ import {
   versionOne,
   versionTwo,
 } from "../test/fixtures";
+import type { StreamingCapture } from "../types";
 import { AdminPanel } from "./AdminPanel";
 import { DeltaLens } from "./DeltaLens";
 import { CommentDialog, HistoryDialog, NoteDialog, ScribeDialog } from "./Dialogs";
@@ -432,4 +433,196 @@ test.each([
   await waitFor(() => expect(screen.getByText("Ready")).toBeVisible());
   fireEvent.click(screen.getByRole("button", { name: /create review draft/i }));
   await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expectedType, expect.any(String)));
+});
+
+const streamingCapture: StreamingCapture = {
+  id: "capture-stream-1",
+  patient_id: "patient-1",
+  interaction_type: "doctor_consult",
+  status: "streaming",
+  latest_sequence: 2,
+  stream_contract_version: "2026-09-01",
+  capabilities: {
+    adapter_mode: "provider_neutral_segment_event_contract",
+    audio_transcription_active: false,
+    clinic_enabled_languages: ["en-SG", "ms-SG", "zh-SG"],
+    provider_supported_language_bases: ["en", "ms", "zh"],
+    provider_supported_language_tags: ["en", "en-sg", "ms", "ms-sg", "zh", "zh-sg"],
+    unsupported_language_policy: "abstain_and_request_human_transcription",
+    speaker_attribution: "adapter_supplied_label_not_biometric_identity",
+    quality_policy: "segment_scores_visible_and_fail_closed",
+  },
+  segments: [
+    {
+      id: "segment-1",
+      sequence: 1,
+      chunk_id: "chunk-1",
+      start_ms: 0,
+      end_ms: 2_000,
+      speaker_label: "clinician",
+      text: "How have you been?",
+      language_spans: [
+        { language_tag: "en-SG", start_offset: 0, end_offset: 18, confidence: 0.97 },
+      ],
+      asr_confidence: 0.95,
+      audio_quality: 0.92,
+      processing_state: "supported",
+      processing_reasons: [],
+      status: "provisional",
+      correction_of_segment_id: null,
+      received_at: "2026-09-05T10:00:00Z",
+    },
+    {
+      id: "segment-2",
+      sequence: 2,
+      chunk_id: "chunk-2",
+      start_ms: 120_000,
+      end_ms: 123_000,
+      speaker_label: "patient",
+      text: "Saya allergic to penicillin, bo pian.",
+      language_spans: [
+        { language_tag: "ms-SG", start_offset: 0, end_offset: 4, confidence: 0.93 },
+        { language_tag: "en-SG", start_offset: 4, end_offset: 29, confidence: 0.96 },
+        { language_tag: "nan", start_offset: 29, end_offset: 37, confidence: 0.84 },
+      ],
+      asr_confidence: 0.91,
+      audio_quality: 0.86,
+      processing_state: "abstained",
+      processing_reasons: ["unsupported_provider_language:nan"],
+      status: "provisional",
+      correction_of_segment_id: null,
+      received_at: "2026-09-05T10:02:00Z",
+    },
+  ],
+  safety_signals: [
+    {
+      id: "signal-1",
+      source_segment_id: "segment-2",
+      signal_type: "allergy_mention",
+      normalized_label: "penicillin",
+      evidence_quote: "allergic to penicillin",
+      source_start_offset: 5,
+      source_end_offset: 27,
+      severity: "critical",
+      evidence_quality: "adapter_supported_unconfirmed",
+      review_state: "provisional",
+      review_rationale: null,
+      reviewed_by: null,
+      detected_at: "2026-09-05T10:02:00Z",
+      reviewed_at: null,
+    },
+  ],
+  safety_signal_count: 1,
+  finalized_entry_id: null,
+  provider_status: null,
+  provider_failure_code: null,
+  started_at: "2026-09-05T10:00:00Z",
+  finalized_at: null,
+  assurance_boundary: "Synthetic segments only; no live audio ASR is claimed.",
+  ingestion: {
+    segment_id: "segment-2",
+    replayed: false,
+    new_safety_signal_ids: ["signal-1"],
+    server_processing_ms: 4.2,
+    latency_scope: "API processing only; excludes ASR and network transit",
+  },
+};
+
+test("scribe streaming rehearsal exposes abstention, provisional review, and finalization", async () => {
+  const confirmed: StreamingCapture = {
+    ...streamingCapture,
+    safety_signals: [
+      {
+        ...streamingCapture.safety_signals[0],
+        review_state: "confirmed",
+        reviewed_by: "user-clinician",
+      },
+    ],
+  };
+  const finalized: StreamingCapture = {
+    ...confirmed,
+    status: "finalized_with_abstention",
+    finalized_entry_id: "entry-draft",
+    provider_status: "live",
+    finalized_at: "2026-09-05T10:03:00Z",
+  };
+  const onRunStreamScenario = vi.fn().mockResolvedValue(streamingCapture);
+  const onReviewStreamSignal = vi.fn().mockResolvedValue(confirmed);
+  const onFinalizeStream = vi.fn().mockResolvedValue(finalized);
+  render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={onRunStreamScenario}
+      onReviewStreamSignal={onReviewStreamSignal}
+      onFinalizeStream={onFinalizeStream}
+    />,
+  );
+
+  expect(screen.getByText("No live ASR claim")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText("Possible penicillin allergy")).toBeVisible();
+  expect(screen.getByText("abstained")).toBeVisible();
+  expect(screen.getByText("nan · 84%")).toBeVisible();
+  expect(screen.getByText(/unsupported provider language:nan/i)).toBeVisible();
+  expect(screen.getByText("4.2 ms")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: /confirm with patient/i }));
+  await waitFor(() =>
+    expect(onReviewStreamSignal).toHaveBeenCalledWith(
+      "capture-stream-1",
+      "signal-1",
+      "confirm",
+    ),
+  );
+  expect(await screen.findByText(/critical floor · confirmed/i)).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: /finalize evidence-safe draft/i }));
+  await waitFor(() => expect(onFinalizeStream).toHaveBeenCalledWith("capture-stream-1"));
+  expect(await screen.findByText(/finalized with explicit abstention · provider live/i)).toBeVisible();
+});
+
+test("scribe streaming rehearsal keeps failures visible and staff signals non-confirmable", async () => {
+  const rejected = vi.fn().mockRejectedValue(new Error("Adapter unavailable"));
+  const { unmount } = render(
+    <ScribeDialog
+      role="clinician"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={rejected}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText("Adapter unavailable")).toBeVisible();
+  unmount();
+
+  render(
+    <ScribeDialog
+      role="staff"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+      onRunStreamScenario={vi.fn().mockResolvedValue(streamingCapture)}
+      onReviewStreamSignal={vi.fn()}
+      onFinalizeStream={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /run trilingual stream rehearsal/i }));
+  expect(await screen.findByText("Possible penicillin allergy")).toBeVisible();
+  expect(screen.queryByRole("button", { name: /confirm with patient/i })).toBeNull();
+});
+
+test("scribe receipt labels deterministic degradation instead of implying AI success", async () => {
+  const onSubmit = vi.fn().mockResolvedValue({
+    receipt: {},
+    flags: ["rule_only_degraded", "provider_deadline_exceeded"],
+    clinicalAnchorCount: 2,
+    clinicalAnchorsPreserved: true,
+    providerStatus: "rule_only_degraded",
+    providerFailureCode: "provider_deadline_exceeded",
+  });
+  render(<ScribeDialog role="clinician" onClose={vi.fn()} onSubmit={onSubmit} />);
+  fireEvent.click(screen.getByRole("button", { name: /create review draft/i }));
+  expect(await screen.findByText(/AI provider failed \(provider_deadline_exceeded\)/i)).toBeVisible();
+  expect(screen.getAllByText("rule only degraded")).toHaveLength(2);
 });

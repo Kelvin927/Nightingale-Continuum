@@ -282,3 +282,81 @@ export interface EvidenceReview {
   provider: string;
   safety_notice: string;
 }
+
+export interface LanguageSpan {
+  language_tag: string;
+  start_offset: number;
+  end_offset: number;
+  confidence: number;
+}
+
+export interface TranscriptSegment {
+  id: string;
+  sequence: number;
+  chunk_id: string;
+  start_ms: number;
+  end_ms: number;
+  speaker_label: string;
+  text: string;
+  language_spans: LanguageSpan[];
+  asr_confidence: number;
+  audio_quality: number;
+  processing_state: "supported" | "human_review_required" | "abstained";
+  processing_reasons: string[];
+  status: "provisional" | "final" | "retracted";
+  correction_of_segment_id: string | null;
+  received_at: string;
+}
+
+export interface SafetySignal {
+  id: string;
+  source_segment_id: string;
+  signal_type: string;
+  normalized_label: string;
+  evidence_quote: string;
+  source_start_offset: number;
+  source_end_offset: number;
+  severity: "critical" | "high";
+  evidence_quality: string;
+  review_state: "provisional" | "confirmed" | "dismissed" | "source_retracted";
+  review_rationale: string | null;
+  reviewed_by: string | null;
+  detected_at: string;
+  reviewed_at: string | null;
+}
+
+export interface StreamingCapture {
+  id: string;
+  patient_id: string;
+  interaction_type: string;
+  status: "streaming" | "finalized" | "finalized_with_abstention";
+  latest_sequence: number;
+  stream_contract_version: string;
+  capabilities: {
+    adapter_mode: string;
+    audio_transcription_active: boolean;
+    clinic_enabled_languages: string[];
+    provider_supported_language_bases: string[];
+    provider_supported_language_tags: string[];
+    unsupported_language_policy: string;
+    speaker_attribution: string;
+    quality_policy: string;
+  };
+  segments: TranscriptSegment[];
+  safety_signals: SafetySignal[];
+  safety_signal_count: number;
+  finalized_entry_id: string | null;
+  provider_status: string | null;
+  provider_failure_code: string | null;
+  started_at: string;
+  finalized_at: string | null;
+  assurance_boundary: string;
+  ingestion?: {
+    segment_id: string;
+    replayed: boolean;
+    new_safety_signal_ids: string[];
+    server_processing_ms: number;
+    latency_scope: string;
+  };
+  finalization?: { replayed: boolean; entry_id: string };
+}

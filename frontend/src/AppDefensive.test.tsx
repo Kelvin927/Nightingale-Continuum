@@ -173,6 +173,8 @@ beforeEach(() => {
     entry_id: "entry-1",
     status: "proposed",
     provider: "local",
+    provider_status: "live",
+    provider_failure_code: null,
     redaction_receipt: {
       detector_version: "v1",
       entity_counts: {},
@@ -243,6 +245,8 @@ test("stale dialog callbacks fail closed after identity scope is cleared", async
       flags: [],
       clinicalAnchorCount: 0,
       clinicalAnchorsPreserved: false,
+      providerStatus: "failed_closed",
+      providerFailureCode: "inactive_capture_context",
     });
     await captures.feedback?.("highlight-1", "reject");
   });

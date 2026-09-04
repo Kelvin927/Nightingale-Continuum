@@ -6,9 +6,12 @@ import type {
   EvidenceReview,
   Glance,
   Identity,
+  LanguageSpan,
   Patient,
   PolicyEvaluation,
   ResolvedProvenance,
+  SafetySignal,
+  StreamingCapture,
   Viewer,
   Workspace,
 } from "./types";
@@ -178,6 +181,8 @@ export const api = {
       entry_id: string;
       status: string;
       provider: string;
+      provider_status: string;
+      provider_failure_code: string | null;
       redaction_receipt: {
         detector_version: string;
         entity_counts: Record<string, number>;
@@ -190,6 +195,47 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  startCapture: (userId: string, patientId: string, interactionType: string) =>
+    request<StreamingCapture>(`/api/v1/patients/${patientId}/captures`, userId, {
+      method: "POST",
+      body: JSON.stringify({ interaction_type: interactionType }),
+    }),
+  appendCaptureSegment: (
+    userId: string,
+    captureId: string,
+    payload: {
+      chunk_id: string;
+      sequence: number;
+      start_ms: number;
+      end_ms: number;
+      speaker_label: "clinician" | "staff" | "patient" | "unknown" | "overlap";
+      text: string;
+      language_spans: LanguageSpan[];
+      asr_confidence: number;
+      audio_quality: number;
+      correction_of_segment_id: string | null;
+    },
+  ) =>
+    request<StreamingCapture>(`/api/v1/captures/${captureId}/segments`, userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  finalizeCapture: (userId: string, captureId: string) =>
+    request<StreamingCapture>(`/api/v1/captures/${captureId}/finalize`, userId, {
+      method: "POST",
+    }),
+  reviewSafetySignal: (
+    userId: string,
+    signalId: string,
+    decision: "confirm" | "dismiss",
+    rationale: string,
+  ) =>
+    request<SafetySignal>(`/api/v1/safety-signals/${signalId}/review`, userId, {
+      method: "POST",
+      body: JSON.stringify({ decision, rationale }),
+    }),
+  capture: (userId: string, captureId: string) =>
+    request<StreamingCapture>(`/api/v1/captures/${captureId}`, userId),
   evidenceReview: (userId: string, patientId: string, question: string) =>
     request<EvidenceReview>("/api/v1/review/query", userId, {
       method: "POST",

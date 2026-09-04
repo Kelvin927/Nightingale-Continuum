@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import type { Entry, EntryVersion, Role } from "../types";
+import type { Entry, EntryVersion, Role, StreamingCapture } from "../types";
 
 export function DialogShell({
   title,
@@ -194,6 +194,9 @@ export function ScribeDialog({
   role,
   onClose,
   onSubmit,
+  onRunStreamScenario,
+  onReviewStreamSignal,
+  onFinalizeStream,
 }: {
   role: Role;
   onClose: () => void;
@@ -202,7 +205,16 @@ export function ScribeDialog({
     flags: string[];
     clinicalAnchorCount: number;
     clinicalAnchorsPreserved: boolean;
+    providerStatus?: string;
+    providerFailureCode?: string | null;
   }>;
+  onRunStreamScenario?: (interactionType: string) => Promise<StreamingCapture>;
+  onReviewStreamSignal?: (
+    captureId: string,
+    signalId: string,
+    decision: "confirm" | "dismiss",
+  ) => Promise<StreamingCapture>;
+  onFinalizeStream?: (captureId: string) => Promise<StreamingCapture>;
 }) {
   const [status, setStatus] = useState<CaptureStatus>("idle");
   const [transcript, setTranscript] = useState("Maya Chen reports dizziness after lisinopril changed from 10 mg to 20 mg. Call +65 9123 4567 after the renal lab result.");
@@ -211,8 +223,13 @@ export function ScribeDialog({
     flags: string[];
     clinicalAnchorCount: number;
     clinicalAnchorsPreserved: boolean;
+    providerStatus?: string;
+    providerFailureCode?: string | null;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [streamBusy, setStreamBusy] = useState(false);
+  const [streamResult, setStreamResult] = useState<StreamingCapture | null>(null);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const interactionType = role === "patient" ? "patient_session" : role === "staff" ? "nurse_consult" : "doctor_consult";
@@ -241,6 +258,45 @@ export function ScribeDialog({
     try { setResult(await onSubmit(interactionType, transcript)); } finally { setBusy(false); }
   }
 
+  async function runStreamScenario() {
+    if (!onRunStreamScenario) return;
+    setStreamBusy(true);
+    setStreamError(null);
+    try {
+      setStreamResult(await onRunStreamScenario(interactionType));
+    } catch (reason) {
+      setStreamError(reason instanceof Error ? reason.message : "Streaming rehearsal failed.");
+    } finally {
+      setStreamBusy(false);
+    }
+  }
+
+  async function reviewStreamSignal(signalId: string, decision: "confirm" | "dismiss") {
+    if (!onReviewStreamSignal || !streamResult) return;
+    setStreamBusy(true);
+    setStreamError(null);
+    try {
+      setStreamResult(await onReviewStreamSignal(streamResult.id, signalId, decision));
+    } catch (reason) {
+      setStreamError(reason instanceof Error ? reason.message : "Signal review failed.");
+    } finally {
+      setStreamBusy(false);
+    }
+  }
+
+  async function finalizeStream() {
+    if (!onFinalizeStream || !streamResult) return;
+    setStreamBusy(true);
+    setStreamError(null);
+    try {
+      setStreamResult(await onFinalizeStream(streamResult.id));
+    } catch (reason) {
+      setStreamError(reason instanceof Error ? reason.message : "Finalization failed.");
+    } finally {
+      setStreamBusy(false);
+    }
+  }
+
   return (
     <DialogShell title="Ambient capture" eyebrow="Privacy-first PWA capture" onClose={onClose} wide>
       {!result ? (
@@ -251,11 +307,61 @@ export function ScribeDialog({
             <p>Audio remains on this device in the prototype. The editable synthetic transcript below demonstrates the enforced redaction and scribe boundary.</p>
           </div>
           <label className="transcript-field">Synthetic transcript<textarea value={transcript} onChange={(event) => setTranscript(event.target.value)} rows={6} /></label>
+          {role !== "patient" && onRunStreamScenario && (
+            <section className="stream-rehearsal" aria-label="Streaming safety rehearsal">
+              <div className="stream-rehearsal-heading">
+                <div><span className="eyebrow">Synthetic event adapter</span><h3>Minute-two safety lane</h3></div>
+                <span className="boundary-chip">No live ASR claim</span>
+              </div>
+              <p>Inject a Malay-English-Hokkien segment at 02:00. Supported words can raise a provisional safety signal while unsupported Hokkien is withheld from downstream AI.</p>
+              {!streamResult ? (
+                <button className="secondary-button" disabled={streamBusy} onClick={runStreamScenario}>
+                  <Radio size={15} />{streamBusy ? "Injecting segments..." : "Run trilingual stream rehearsal"}
+                </button>
+              ) : (
+                <div className="stream-result">
+                  <div className="stream-metrics">
+                    <span><strong>{streamResult.segments.length}</strong> immutable segments</span>
+                    <span><strong>{streamResult.ingestion?.server_processing_ms ?? "-"} ms</strong> API processing</span>
+                    <span><strong>{streamResult.safety_signal_count}</strong> provisional signal</span>
+                  </div>
+                  {streamResult.segments.map((segment) => (
+                    <article className="stream-segment" key={segment.id}>
+                      <div><strong>{Math.floor(segment.start_ms / 60000).toString().padStart(2, "0")}:{Math.floor((segment.start_ms % 60000) / 1000).toString().padStart(2, "0")} · {segment.speaker_label}</strong><span className={`stream-state ${segment.processing_state}`}>{segment.processing_state.replaceAll("_", " ")}</span></div>
+                      <p>{segment.text}</p>
+                      <div className="language-spans">{segment.language_spans.map((span) => <span key={`${span.start_offset}-${span.language_tag}`}>{span.language_tag} · {Math.round(span.confidence * 100)}%</span>)}</div>
+                      {segment.processing_reasons.map((reason) => <small key={reason}><AlertTriangle size={12} />{reason.replaceAll("_", " ")}</small>)}
+                    </article>
+                  ))}
+                  {streamResult.safety_signals.map((signal) => (
+                    <article className="provisional-signal" key={signal.id}>
+                      <div><AlertTriangle size={17} /><span><strong>Possible {signal.normalized_label} allergy</strong><small>Critical floor · {signal.review_state.replaceAll("_", " ")}</small></span></div>
+                      <blockquote>“{signal.evidence_quote}”</blockquote>
+                      <p>Source-bound provisional evidence, not a confirmed clinical fact.</p>
+                      {signal.review_state === "provisional" && role === "clinician" && (
+                        <div className="signal-actions">
+                          <button disabled={streamBusy} onClick={() => reviewStreamSignal(signal.id, "dismiss")}>Dismiss after source review</button>
+                          <button className="primary-button" disabled={streamBusy} onClick={() => reviewStreamSignal(signal.id, "confirm")}><CheckCircle2 size={14} />Confirm with patient</button>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                  <div className="stream-boundary"><ShieldCheck size={15} /><span>{streamResult.assurance_boundary}</span></div>
+                  {streamResult.status === "streaming" && onFinalizeStream ? (
+                    <button className="secondary-button" disabled={streamBusy} onClick={finalizeStream}><Bot size={15} />{streamBusy ? "Finalizing..." : "Finalize evidence-safe draft"}</button>
+                  ) : (
+                    <div className="stream-finalized"><CheckCircle2 size={15} /><span>Finalized with explicit abstention · provider {streamResult.provider_status ?? "not invoked"}</span></div>
+                  )}
+                </div>
+              )}
+              {streamError && <div className="form-error"><AlertTriangle size={15} />{streamError}</div>}
+            </section>
+          )}
           <div className="privacy-pipeline"><span><ShieldCheck size={16} />Raw capture</span><i /><span><LockKeyhole size={16} />Redact PHI</span><i /><span><Bot size={16} />Draft</span><i /><span><CheckCircle2 size={16} />Human review</span></div>
           <div className="modal-actions"><button className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={busy || !transcript.trim()} onClick={submit}><Send size={15} />{busy ? "Redacting..." : "Create review draft"}</button></div>
         </div>
       ) : (
-        <div className="receipt-success"><CheckCircle2 size={34} /><h3>Draft submitted for human review</h3><p>The local provider received redacted text only.</p><div className="receipt-counts">{Object.entries(result.receipt).map(([name, count]) => <span key={name}><strong>{count}</strong>{name.replaceAll("_", " ")}</span>)}<span><strong>{result.clinicalAnchorCount}</strong>clinical anchors checked</span></div><div className="policy-callout"><ShieldCheck size={16} /><span>{result.clinicalAnchorsPreserved ? "Medication, dose, and allergy anchors were preserved exactly." : "Clinical-anchor fidelity failed; do not use this draft."}</span></div><div className="flag-list">{result.flags.map((flag) => <span key={flag}>{flag.replaceAll("_", " ")}</span>)}</div><button className="primary-button" onClick={onClose}>Return to care note</button></div>
+        <div className="receipt-success"><CheckCircle2 size={34} /><h3>Draft submitted for human review</h3><p>{result.providerStatus === "rule_only_degraded" ? `The AI provider failed (${result.providerFailureCode}); a deterministic rule-only draft was returned.` : "The local provider received redacted text only."}</p><div className="receipt-counts">{Object.entries(result.receipt).map(([name, count]) => <span key={name}><strong>{count}</strong>{name.replaceAll("_", " ")}</span>)}<span><strong>{result.clinicalAnchorCount}</strong>clinical anchors checked</span>{result.providerStatus && <span><strong>{result.providerStatus.replaceAll("_", " ")}</strong>provider outcome</span>}</div><div className="policy-callout"><ShieldCheck size={16} /><span>{result.clinicalAnchorsPreserved ? "Medication, dose, and allergy anchors were preserved exactly." : "Clinical-anchor fidelity failed; do not use this draft."}</span></div><div className="flag-list">{result.flags.map((flag) => <span key={flag}>{flag.replaceAll("_", " ")}</span>)}</div><button className="primary-button" onClick={onClose}>Return to care note</button></div>
       )}
     </DialogShell>
   );

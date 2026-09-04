@@ -81,9 +81,32 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     outcome: "accepted",
     provider_message_id: "provider-1",
   });
+  await api.startCapture("user-1", "patient-1", "doctor_consult");
+  await api.appendCaptureSegment("user-1", "capture-1", {
+    chunk_id: "chunk-1",
+    sequence: 1,
+    start_ms: 0,
+    end_ms: 2_000,
+    speaker_label: "patient",
+    text: "Synthetic segment",
+    language_spans: [
+      { language_tag: "en-SG", start_offset: 0, end_offset: 17, confidence: 0.9 },
+    ],
+    asr_confidence: 0.9,
+    audio_quality: 0.9,
+    correction_of_segment_id: null,
+  });
+  await api.finalizeCapture("user-1", "capture-1");
+  await api.reviewSafetySignal(
+    "user-1",
+    "signal-1",
+    "confirm",
+    "Confirmed with patient.",
+  );
+  await api.capture("user-1", "capture-1");
 
   const calls = vi.mocked(fetch).mock.calls;
-  expect(calls).toHaveLength(23);
+  expect(calls).toHaveLength(28);
   expect(calls.map(([path]) => path)).toEqual([
     "/api/v1/demo/identities",
     "/api/v1/me",
@@ -108,6 +131,11 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
     "/api/v1/entries/entry-1/deliveries",
     "/api/v1/deliveries/delivery-1/corrections",
     "/api/v1/deliveries/delivery-1/transition",
+    "/api/v1/patients/patient-1/captures",
+    "/api/v1/captures/capture-1/segments",
+    "/api/v1/captures/capture-1/finalize",
+    "/api/v1/safety-signals/signal-1/review",
+    "/api/v1/captures/capture-1",
   ]);
   expect((calls[0][1]?.headers as Headers).has("X-Demo-User")).toBe(false);
   expect((calls[1][1]?.headers as Headers).get("X-Demo-User")).toBe("user-1");
@@ -129,6 +157,13 @@ test("all API methods preserve paths, identity headers, methods, and JSON bodies
   expect(calls[22][1]?.body).toBe(JSON.stringify({
     outcome: "accepted",
     provider_message_id: "provider-1",
+  }));
+  expect(calls[23][1]?.body).toBe(JSON.stringify({ interaction_type: "doctor_consult" }));
+  expect(calls[24][1]?.body).toContain('"chunk_id":"chunk-1"');
+  expect(calls[25][1]).toMatchObject({ method: "POST" });
+  expect(calls[26][1]?.body).toBe(JSON.stringify({
+    decision: "confirm",
+    rationale: "Confirmed with patient.",
   }));
 });
 
