@@ -23,7 +23,7 @@ Uvicorn 0.52.4 - BSD 3-Clause License
 https://github.com/encode/uvicorn
 
 HTTPX2 2.10.0 and HTTPCore2 2.10.0 - BSD 3-Clause License
-https://github.com/pydantic/httpx
+https://github.com/pydantic/httpx2
 
 React 19.2.8 and React DOM 19.2.8 - MIT License
 https://github.com/facebook/react
