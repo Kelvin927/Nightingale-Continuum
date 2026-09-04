@@ -229,9 +229,28 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .contact-route span { display: grid; gap: 2px; }
 .contact-route strong { font-size: 9px; text-transform: capitalize; }
 .contact-route small { color: #668078; font-size: 7.5px; }
-.delivery-approval { display: grid; grid-template-columns: minmax(190px, 0.8fr) minmax(380px, 1.6fr) auto; align-items: end; gap: 12px; margin-top: 14px; padding: 12px; background: rgb(255 255 255 / 78%); border: 1px solid #dfe8e1; border-radius: 10px; }
+.delivery-approval { display: grid; grid-template-columns: minmax(170px, 0.65fr) minmax(330px, 1.45fr) minmax(235px, 1fr) auto; align-items: end; gap: 12px; margin-top: 14px; padding: 12px; background: rgb(255 255 255 / 78%); border: 1px solid #dfe8e1; border-radius: 10px; }
 .delivery-approval > label { display: grid; gap: 5px; color: #617570; font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .delivery-approval select { width: 100%; padding: 7px 9px; color: #3d5854; border: 1px solid #d5dfd8; border-radius: 7px; background: #fff; font-size: 8.5px; }
+.terminology-gate { min-width: 0; padding: 9px 10px; color: #526c67; background: #f2f7f3; border: 1px solid #d4e4db; border-radius: 8px; font-size: 7.5px; line-height: 1.4; }
+.terminology-blocked_unresolved, .terminology-missing { color: #88453f; background: #fbefed; border-color: #eccdc8; }
+.terminology-human_review_only { color: #725f31; background: #fbf5e8; border-color: #eadcb9; }
+.terminology-title { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.terminology-title svg { flex: 0 0 auto; }
+.terminology-title strong { font-size: 8px; }
+.terminology-title code { margin-left: auto; color: #82908c; font-size: 6.5px; }
+.terminology-evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 7px 0 0; padding: 0; list-style: none; }
+.terminology-evidence li { display: grid; grid-template-columns: 1fr auto; gap: 1px 5px; padding: 5px 6px; background: rgb(255 255 255 / 68%); border-radius: 5px; }
+.terminology-evidence span { overflow: hidden; font-weight: 750; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.terminology-evidence strong { color: #315f59; }
+.terminology-evidence small { grid-column: 1 / -1; color: #7c8986; font-size: 6.5px; }
+.terminology-empty, .terminology-warning, .terminology-issue { margin: 6px 0 0; }
+.terminology-warning { color: #81572f; font-weight: 700; }
+.terminology-issue { display: flex; align-items: flex-start; gap: 4px; }
+.terminology-issue svg { flex: 0 0 auto; }
+.terminology-gate details { margin-top: 6px; padding-top: 5px; border-top: 1px solid rgb(95 122 114 / 14%); }
+.terminology-gate summary { color: inherit; font-weight: 750; cursor: pointer; }
+.terminology-gate details p { margin: 5px 0 0; }
 .attestation-grid { display: grid; gap: 4px; }
 .attestation-grid label { display: flex; align-items: center; gap: 6px; color: #62746f; font-size: 8px; line-height: 1.35; }
 .attestation-grid input { width: 12px; height: 12px; accent-color: var(--teal); }

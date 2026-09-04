@@ -152,7 +152,7 @@ export function ReviewCopilotDialog({
           {result.conflicts.length > 0 && (
             <div className="review-conflicts">
               <AlertTriangle size={17} />
-              <div><strong>Conflict review required</strong>{result.conflicts.map((item) => <p key={item}>{item}</p>)}</div>
+              <div><strong>Conflict review required</strong>{result.conflicts.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div>
             </div>
           )}
 

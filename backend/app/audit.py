@@ -82,6 +82,7 @@ ALLOWED_METADATA_KEYS = {
     "stream_contract_version",
     "target_version",
     "thread_id",
+    "terminology_status",
     "to_tier",
     "to_version",
     "visibility",

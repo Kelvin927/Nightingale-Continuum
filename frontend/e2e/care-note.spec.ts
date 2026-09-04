@@ -58,6 +58,31 @@ test("phone-only access creates a device-bound patient projection without email"
   await expect(dialog.getByText(/patient-visible longitudinal projection/i)).toBeVisible();
 });
 
+test("clinician sees version-bound medication evidence before patient delivery", async ({ page }) => {
+  await page.goto("/");
+  const summary = page.locator('article[aria-label^="Your visit summary,"]');
+  await summary.getByRole("button", { name: "Edit section" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Note content").fill(
+    "Take lisinopril 10 mg daily, not 20 mg. Call the clinic if the instruction is unclear.",
+  );
+  await dialog.getByRole("button", { name: "Save version" }).click();
+
+  const gate = page.getByRole("group", { name: "Medication terminology release gate" });
+  await expect(gate.getByText("Structured medication evidence ready")).toBeVisible();
+  await expect(gate.getByText("10 mg", { exact: true })).toBeVisible();
+  await expect(gate.getByText("20 mg", { exact: true })).toBeVisible();
+  await expect(gate.getByText(/scanner does not infer clinical intent/i)).toBeVisible();
+  await gate.getByText(/what this check does/i).click();
+  await expect(gate.getByText(/does not establish prescription accuracy/i)).toBeVisible();
+
+  await page.getByLabel(/reviewed the exact patient-facing copy/i).check();
+  await page.getByLabel(/verified the patient and contact route/i).check();
+  await expect(page.getByRole("button", { name: /queue approved copy/i })).toBeDisabled();
+  await page.getByLabel(/verified every medication and dose/i).check();
+  await expect(page.getByRole("button", { name: /queue approved copy/i })).toBeEnabled();
+});
+
 test("mobile layout preserves the glance and role navigation @mobile", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "What needs attention now" })).toBeVisible();

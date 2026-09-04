@@ -10,7 +10,13 @@ import {
   XCircle,
 } from "lucide-react";
 
-import type { DeliveryItem, DeliveryReadiness, Entry, Role } from "../types";
+import type {
+  DeliveryItem,
+  DeliveryReadiness,
+  Entry,
+  Role,
+  TerminologyAssessment,
+} from "../types";
 
 interface Attestations {
   clinical: boolean;
@@ -36,15 +42,20 @@ interface Props {
   ) => Promise<void>;
 }
 
-const MEDICATION_OR_DOSE =
-  /\b(?:dose|dosage|medication|medicine|tablet|capsule|mg|mcg|g|ml|lisinopril|penicillin)\b/i;
-
 function StatusIcon({ status }: { status: DeliveryItem["status"] }) {
   if (status === "delivered") return <CheckCircle2 size={15} />;
   if (status === "failed") return <XCircle size={15} />;
   if (status === "accepted") return <Clock3 size={15} />;
   if (status === "superseded") return <RefreshCw size={15} />;
   return <Send size={15} />;
+}
+
+function terminologyLabel(assessment: TerminologyAssessment | undefined) {
+  if (!assessment) return "Assessment unavailable — release blocked";
+  if (assessment.status === "blocked_unresolved") return "Unresolved terminology — release blocked";
+  if (assessment.status === "structured_review_ready") return "Structured medication evidence ready";
+  if (assessment.status === "human_review_only") return "Human review only — no structured dose pair";
+  return "No medication or dose signal detected";
 }
 
 export function DeliveryCenter({
@@ -66,7 +77,12 @@ export function DeliveryCenter({
     ?? readiness.contacts[0];
   const selectedEntry = patientFacingEntries.find((entry) => entry.id === selectedEntryId)
     ?? patientFacingEntries[0];
-  const doseSensitive = Boolean(selectedEntry && MEDICATION_OR_DOSE.test(selectedEntry.version.content));
+  const terminology = readiness.terminology_assessments?.find(
+    (item) => item.entry_id === selectedEntry?.id
+      && item.source_version_id === selectedEntry?.version.id,
+  );
+  const doseSensitive = terminology?.human_confirmation_required ?? false;
+  const terminologyReady = Boolean(terminology?.release_permitted_after_confirmation);
   const readyToQueue = Boolean(
     selectedEntry
     && preferredContact
@@ -75,6 +91,7 @@ export function DeliveryCenter({
     && preferredContact.consent_status === "granted"
     && attestations.clinical
     && attestations.identity
+    && terminologyReady
     && (!doseSensitive || attestations.medication),
   );
   const entriesById = useMemo(
@@ -84,6 +101,11 @@ export function DeliveryCenter({
 
   function toggle(key: keyof Attestations) {
     setAttestations((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function selectEntry(entryId: string) {
+    setSelectedEntryId(entryId);
+    setAttestations({ clinical: false, identity: false, medication: false });
   }
 
   return (
@@ -114,7 +136,7 @@ export function DeliveryCenter({
             <select
               aria-label="Patient-facing source"
               value={selectedEntry?.id ?? ""}
-              onChange={(event) => setSelectedEntryId(event.target.value)}
+              onChange={(event) => selectEntry(event.target.value)}
             >
               {patientFacingEntries.map((entry) => (
                 <option key={entry.id} value={entry.id}>
@@ -123,6 +145,55 @@ export function DeliveryCenter({
               ))}
             </select>
           </label>
+          <div
+            className={`terminology-gate terminology-${terminology?.status ?? "missing"}`}
+            role="group"
+            aria-label="Medication terminology release gate"
+          >
+            <div className="terminology-title">
+              {terminologyReady ? <ShieldCheck size={16} /> : <CircleAlert size={16} />}
+              <strong>{terminologyLabel(terminology)}</strong>
+              {terminology && <code>{terminology.policy_version}</code>}
+            </div>
+            {terminology?.dose_mentions.length ? (
+              <ul className="terminology-evidence">
+                {terminology.dose_mentions.map((mention) => (
+                  <li key={`${mention.source_start}-${mention.source_end}`}>
+                    <span>{mention.medication_name ?? "Unlinked dose"}</span>
+                    <strong>{mention.normalized_value} {mention.normalized_unit}</strong>
+                    <small>Exact source: “{mention.source_text}” · chars {mention.source_start}–{mention.source_end}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : terminology && (
+              <p className="terminology-empty">
+                {terminology.status === "not_applicable"
+                  ? "The deterministic scanner found no medication or dose expression in this copy."
+                  : "Medication wording is present, but there is no structured medication-dose pair to reference."}
+              </p>
+            )}
+            {terminology?.unresolved.map((issue) => (
+              <p className="terminology-issue" key={`${issue.code}-${issue.source_start}`}>
+                <CircleAlert size={13} /><strong>{issue.source_text}</strong> — {issue.message}
+              </p>
+            ))}
+            {terminology?.semantic_review_required && (
+              <p className="terminology-warning">
+                Multiple or contrastive dose statements are present. Confirm which statement is intended;
+                the scanner does not infer clinical intent.
+              </p>
+            )}
+            {terminology && (
+              <details>
+                <summary>What this check does — and does not prove</summary>
+                <p>{terminology.decision_boundary}</p>
+                <p>
+                  This demo used its project-authored local vocabulary; no external terminology lookup was
+                  performed. Production target: {terminology.adapter.production_target}.
+                </p>
+              </details>
+            )}
+          </div>
           <div className="attestation-grid">
             <label><input type="checkbox" checked={attestations.clinical} onChange={() => toggle("clinical")} />I reviewed the exact patient-facing copy.</label>
             <label><input type="checkbox" checked={attestations.identity} onChange={() => toggle("identity")} />I verified the patient and contact route.</label>
@@ -150,6 +221,7 @@ export function DeliveryCenter({
             && !delivery.source_is_current
             && currentEntry
             && preferredContact;
+          const correctingSelectedEntry = currentEntry?.id === selectedEntry?.id;
           return (
             <article key={delivery.id} className={`delivery-row delivery-${delivery.status}`}>
               <div className="delivery-status-icon"><StatusIcon status={delivery.status} /></div>
@@ -171,7 +243,7 @@ export function DeliveryCenter({
                 {correctionEligible && (
                   <button
                     className="delivery-correction"
-                    disabled={busy || !readyToQueue}
+                    disabled={busy || !readyToQueue || !correctingSelectedEntry}
                     onClick={() => void onCorrect(
                       delivery,
                       currentEntry,

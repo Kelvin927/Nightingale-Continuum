@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { deliveryReadiness, patientInstruction } from "../test/fixtures";
-import type { DeliveryItem, Entry } from "../types";
+import type { DeliveryItem, Entry, TerminologyAssessment } from "../types";
 import { DeliveryCenter } from "./DeliveryCenter";
 
 const delivered: DeliveryItem = {
@@ -34,6 +34,19 @@ const plainEntry: Entry = {
   },
 };
 
+const structuredAssessment = deliveryReadiness.terminology_assessments?.[0] as TerminologyAssessment;
+const plainAssessment: TerminologyAssessment = {
+  ...structuredAssessment,
+  entry_id: plainEntry.id,
+  source_version_id: plainEntry.version.id,
+  status: "not_applicable",
+  dose_sensitive: false,
+  human_confirmation_required: false,
+  semantic_review_required: false,
+  medication_mentions: [],
+  dose_mentions: [],
+};
+
 function props() {
   return {
     readiness: deliveryReadiness,
@@ -50,6 +63,11 @@ test("clinician queue requires exact-copy, identity, and dose attestations", () 
   const values = props();
   render(<DeliveryCenter {...values} />);
   expect(screen.getByText(/WhatsApp ending 4567/)).toBeVisible();
+  expect(screen.getByText("Structured medication evidence ready")).toBeVisible();
+  expect(screen.getByText("20 mg")).toBeVisible();
+  fireEvent.click(screen.getByText(/what this check does/i));
+  expect(screen.getByText(/does not establish prescription accuracy/i)).toBeVisible();
+  expect(screen.getByText(/no external terminology lookup was performed/i)).toBeVisible();
   const queue = screen.getByRole("button", { name: /queue approved copy/i });
   expect(queue).toBeDisabled();
 
@@ -143,11 +161,20 @@ test("entry selection recalculates a non-medication approval contract", () => {
     <DeliveryCenter
       {...values}
       patientFacingEntries={[patientInstruction, plainEntry]}
+      readiness={{
+        ...deliveryReadiness,
+        terminology_assessments: [structuredAssessment, plainAssessment],
+      }}
     />,
   );
+  fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
+  fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
+  fireEvent.click(screen.getByLabelText(/verified every medication and dose/i));
   fireEvent.change(screen.getByLabelText("Patient-facing source"), {
     target: { value: plainEntry.id },
   });
+  expect(screen.getByText("No medication or dose signal detected")).toBeVisible();
+  expect(screen.getByRole("button", { name: /queue approved copy/i })).toBeDisabled();
   fireEvent.click(screen.getByLabelText(/reviewed the exact patient-facing copy/i));
   fireEvent.click(screen.getByLabelText(/verified the patient and contact route/i));
   const queue = screen.getByRole("button", { name: /queue approved copy/i });
@@ -159,6 +186,78 @@ test("entry selection recalculates a non-medication approval contract", () => {
     "contact-whatsapp",
     { clinical: true, identity: true, medication: false },
   );
+});
+
+test("missing or unresolved terminology evidence fails closed with a visible reason", () => {
+  const values = props();
+  const first = render(
+    <DeliveryCenter
+      {...values}
+      readiness={{ ...deliveryReadiness, terminology_assessments: undefined }}
+    />,
+  );
+  expect(screen.getByText(/assessment unavailable.*release blocked/i)).toBeVisible();
+  expect(screen.getByRole("button", { name: /queue approved copy/i })).toBeDisabled();
+  first.unmount();
+
+  const unresolved: TerminologyAssessment = {
+    ...structuredAssessment,
+    status: "blocked_unresolved",
+    release_permitted_after_confirmation: false,
+    dose_mentions: [{
+      source_text: "25 mg",
+      source_start: 5,
+      source_end: 10,
+      normalized_value: "25",
+      normalized_unit: "mg",
+      medication_name: null,
+    }],
+    unresolved: [{
+      code: "unlinked_dose",
+      source_text: "25 mg",
+      source_start: 5,
+      source_end: 10,
+      message: "This dose is not linked to a supported medication name.",
+    }],
+  };
+  render(
+    <DeliveryCenter
+      {...values}
+      readiness={{ ...deliveryReadiness, terminology_assessments: [unresolved] }}
+    />,
+  );
+  expect(screen.getByText(/unresolved terminology.*release blocked/i)).toBeVisible();
+  expect(screen.getByText(/this dose is not linked/i)).toBeVisible();
+  expect(screen.getByText("Unlinked dose")).toBeVisible();
+});
+
+test("human-only and contrastive states disclose their limits", () => {
+  const values = props();
+  const humanOnly: TerminologyAssessment = {
+    ...structuredAssessment,
+    status: "human_review_only",
+    dose_mentions: [],
+  };
+  const first = render(
+    <DeliveryCenter
+      {...values}
+      readiness={{ ...deliveryReadiness, terminology_assessments: [humanOnly] }}
+    />,
+  );
+  expect(screen.getByText(/human review only.*no structured dose pair/i)).toBeVisible();
+  expect(screen.getByText(/no structured medication-dose pair/i)).toBeVisible();
+  first.unmount();
+
+  render(
+    <DeliveryCenter
+      {...values}
+      readiness={{
+        ...deliveryReadiness,
+        terminology_assessments: [{ ...structuredAssessment, semantic_review_required: true }],
+      }}
+    />,
+  );
+  expect(screen.getByText(/scanner does not infer clinical intent/i)).toBeVisible();
 });
 
 test("failed, superseded, and correction delivery states remain distinguishable", () => {

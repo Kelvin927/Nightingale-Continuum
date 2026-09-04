@@ -124,6 +124,11 @@ export const patientInstruction: Entry = {
   author: identities[0],
   visibility: "patient",
   trust_state: "clinician_confirmed",
+  version: {
+    ...versionOne,
+    id: "version-patient-instruction",
+    content: "Take lisinopril 20 mg daily.",
+  },
   comment_threads: [],
 };
 
@@ -140,6 +145,53 @@ export const deliveryReadiness: DeliveryReadiness = {
     },
   ],
   deliveries: [],
+  terminology_assessments: [
+    {
+      entry_id: patientInstruction.id,
+      source_version_id: patientInstruction.version.id,
+      current_version: patientInstruction.current_version,
+      policy_version: "medication-confirmation/2026-09-05",
+      status: "structured_review_ready",
+      dose_sensitive: true,
+      human_confirmation_required: true,
+      semantic_review_required: false,
+      release_permitted_after_confirmation: true,
+      external_reference_performed: false,
+      adapter: {
+        name: "project_authored_local_demo_vocabulary",
+        version: "local-demo-vocabulary/1.0",
+        mode: "synthetic_rehearsal_only",
+        production_target: "NLM RxNorm exact lookup plus a clinic-approved local formulary",
+        production_endpoint_pattern: "https://rxnav.nlm.nih.gov/REST/rxcui.json?name={isolated_term}",
+      },
+      medication_mentions: [
+        {
+          normalized_name: "lisinopril",
+          local_terminology_id: "demo-med:lisinopril",
+          source_text: "lisinopril",
+          source_start: 5,
+          source_end: 15,
+          reference_state: "local_demo_vocabulary_only",
+        },
+      ],
+      dose_mentions: [
+        {
+          source_text: "20 mg",
+          source_start: 16,
+          source_end: 21,
+          normalized_value: "20",
+          normalized_unit: "mg",
+          medication_name: "lisinopril",
+        },
+      ],
+      unresolved: [],
+      decision_boundary: (
+        "A terminology match checks only that a medication name and dose expression are "
+        + "machine-addressable. It does not establish prescription accuracy, patient-specific "
+        + "appropriateness, route, frequency, interactions, contraindications, or clinical intent."
+      ),
+    },
+  ],
   safety_contract: (
     "Provider acceptance is not patient delivery. Sent snapshots remain immutable; "
     + "corrections preserve the original side by side."

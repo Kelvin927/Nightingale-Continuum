@@ -6,10 +6,12 @@ import {
   evidenceReview,
   glance,
   patient,
+  patientInstruction,
   patientGlance,
   provenance,
 } from "./test/fixtures";
 import { GlanceBoard } from "./components/GlanceBoard";
+import { DeliveryCenter } from "./components/DeliveryCenter";
 import { NoteDialog } from "./components/Dialogs";
 import { PatientAccessDialog } from "./components/PatientAccessDialog";
 import { ProvenanceDrawer } from "./components/ProvenanceDrawer";
@@ -79,6 +81,22 @@ test("phone-only access dialog has no axe-detectable accessibility violations", 
       onClose={vi.fn()}
       onIssue={vi.fn()}
       onRedeem={vi.fn()}
+    />,
+  );
+  const results = await axe(view.container, noColorContrast);
+  expect(results.violations).toEqual([]);
+});
+
+test("medication delivery gate has no axe-detectable accessibility violations", async () => {
+  const view = render(
+    <DeliveryCenter
+      readiness={deliveryReadiness}
+      role="clinician"
+      patientFacingEntries={[patientInstruction]}
+      busy={false}
+      onQueue={vi.fn()}
+      onCorrect={vi.fn()}
+      onTransition={vi.fn()}
     />,
   );
   const results = await axe(view.container, noColorContrast);

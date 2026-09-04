@@ -150,16 +150,67 @@ export interface DeliveryItem {
   attempt_count: number;
   failure_code?: string | null;
   approved_by?: string;
-  approval_evidence?: Record<string, boolean>;
+  approval_evidence?: Record<string, unknown>;
   created_at: string;
   accepted_at: string | null;
   delivered_at: string | null;
   superseded_at: string | null;
 }
 
+export interface TerminologyMedicationMention {
+  normalized_name: string;
+  local_terminology_id: string;
+  source_text: string;
+  source_start: number;
+  source_end: number;
+  reference_state: "local_demo_vocabulary_only";
+}
+
+export interface TerminologyDoseMention {
+  source_text: string;
+  source_start: number;
+  source_end: number;
+  normalized_value: string;
+  normalized_unit: string;
+  medication_name: string | null;
+}
+
+export interface TerminologyIssue {
+  code: "unlinked_dose" | "non_positive_dose" | "unsupported_dose_unit";
+  source_text: string;
+  source_start: number;
+  source_end: number;
+  message: string;
+}
+
+export interface TerminologyAssessment {
+  entry_id: string;
+  source_version_id: string;
+  current_version: number;
+  policy_version: string;
+  status: "not_applicable" | "human_review_only" | "structured_review_ready" | "blocked_unresolved";
+  dose_sensitive: boolean;
+  human_confirmation_required: boolean;
+  semantic_review_required: boolean;
+  release_permitted_after_confirmation: boolean;
+  external_reference_performed: false;
+  adapter: {
+    name: string;
+    version: string;
+    mode: "synthetic_rehearsal_only";
+    production_target: string;
+    production_endpoint_pattern: string;
+  };
+  medication_mentions: TerminologyMedicationMention[];
+  dose_mentions: TerminologyDoseMention[];
+  unresolved: TerminologyIssue[];
+  decision_boundary: string;
+}
+
 export interface DeliveryReadiness {
   contacts: DeliveryContact[];
   deliveries: DeliveryItem[];
+  terminology_assessments?: TerminologyAssessment[];
   safety_contract: string;
 }
 

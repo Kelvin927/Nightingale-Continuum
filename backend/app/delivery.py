@@ -14,11 +14,8 @@ from .audit import append_audit
 from .care import current_version
 from .models import Entry, OutboundDelivery, Patient, PatientContact, User
 from .policy import patient_can_read_entry
+from .terminology import assess_medication_terminology
 
-MEDICATION_OR_DOSE = re.compile(
-    r"\b(?:dose|dosage|medication|medicine|tablet|capsule|mg|mcg|g|ml|lisinopril|penicillin)\b",
-    re.IGNORECASE,
-)
 SAFE_PROVIDER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}\Z")
 SAFE_FAILURE_CODE = re.compile(r"[a-z0-9][a-z0-9._-]{0,79}\Z")
 ALLOWED_TRANSITIONS = {
@@ -79,8 +76,13 @@ def queue_delivery(
         _deny("delivery_version_conflict", "The entry changed after delivery review")
     if not confirm_clinical_review or not confirm_patient_identity:
         _deny("delivery_attestation_incomplete", "Clinical review and identity checks are required")
-    dose_sensitive = bool(MEDICATION_OR_DOSE.search(version.content))
-    if dose_sensitive and not confirm_medication_and_dose:
+    terminology = assess_medication_terminology(version.content)
+    if not terminology["release_permitted_after_confirmation"]:
+        _deny(
+            "terminology_release_blocked",
+            "Medication or dose evidence is unresolved; revise the copy before delivery",
+        )
+    if terminology["human_confirmation_required"] and not confirm_medication_and_dose:
         _deny(
             "medication_dose_attestation_required",
             "Medication and dose content requires an explicit second attestation",
@@ -150,7 +152,8 @@ def queue_delivery(
             "clinical_review": True,
             "patient_identity": True,
             "medication_and_dose": confirm_medication_and_dose,
-            "dose_sensitive": dose_sensitive,
+            "dose_sensitive": terminology["dose_sensitive"],
+            "terminology": terminology,
         },
         approved_by=actor.id,
     )
@@ -167,6 +170,7 @@ def queue_delivery(
             "channel": delivery.channel,
             "source_version": entry.current_version,
             "dose_attested": confirm_medication_and_dose,
+            "terminology_status": terminology["status"],
             "correction_for": delivery.correction_for_id,
         },
     )
@@ -263,12 +267,38 @@ def delivery_snapshot(
             .order_by(OutboundDelivery.created_at.desc())
         )
     )
+    patient_facing_entries = (
+        list(
+            session.scalars(
+                select(Entry).where(
+                    Entry.patient_id == patient.id,
+                    Entry.visibility == "patient",
+                    Entry.owner_role == "clinician",
+                    Entry.trust_state == "clinician_confirmed",
+                    Entry.entry_type.in_(["patient_summary", "patient_instruction"]),
+                )
+            )
+        )
+        if include_internal
+        else []
+    )
     current_versions = {
         entry.id: entry.current_version_id
         for entry in session.scalars(
             select(Entry).where(Entry.id.in_({item.source_entry_id for item in deliveries}))
         )
     }
+    terminology_assessments = []
+    for entry in patient_facing_entries:
+        version = current_version(session, entry)
+        terminology_assessments.append(
+            {
+                "entry_id": entry.id,
+                "source_version_id": version.id,
+                "current_version": entry.current_version,
+                **assess_medication_terminology(version.content),
+            }
+        )
     receipt_labels = {
         "queued": "Queued locally; not accepted by the provider",
         "accepted": "Provider accepted; patient delivery is not yet confirmed",
@@ -324,6 +354,7 @@ def delivery_snapshot(
             }
             for item in deliveries
         ],
+        **({"terminology_assessments": terminology_assessments} if include_internal else {}),
         "safety_contract": (
             "Provider acceptance is not patient delivery. Sent snapshots remain immutable; "
             "corrections create a new approved message and preserve the original side by side."
