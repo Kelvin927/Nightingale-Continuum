@@ -273,6 +273,12 @@ export const provenance: ResolvedProvenance = {
   content: versionOne.content,
   content_hash: versionOne.content_hash,
   verified: true,
+  source_is_current: true,
+  current_version_id: versionOne.id,
+  current_version: 1,
+  current_content: versionOne.content,
+  current_content_hash: versionOne.content_hash,
+  changes_since_source: [],
 };
 
 export const evaluation: PolicyEvaluation = {

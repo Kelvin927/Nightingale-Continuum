@@ -147,12 +147,33 @@ test("delta lens links exact evidence and tolerates absent comparison and eviden
 
 test("provenance drawer exposes the complete receipt and both close affordances", () => {
   const onClose = vi.fn();
-  render(<ProvenanceDrawer source={provenance} onClose={onClose} />);
+  const { rerender } = render(<ProvenanceDrawer source={provenance} onClose={onClose} />);
   expect(screen.getByText(provenance.quote)).toBeVisible();
   expect(screen.getByText(/character span/i).nextSibling).toHaveTextContent("0-41");
   expect(screen.getByText(provenance.content_hash)).toBeVisible();
   screen.getAllByRole("button", { name: /close source drawer/i }).forEach(fireEvent.click);
   expect(onClose).toHaveBeenCalledTimes(2);
+
+  rerender(
+    <ProvenanceDrawer
+      source={{
+        ...provenance,
+        source_is_current: false,
+        current_version_id: "version-2",
+        current_version: 2,
+        current_content: versionTwo.content,
+        current_content_hash: versionTwo.content_hash,
+        changes_since_source: [
+          { operation: "replace", before: versionOne.content, after: versionTwo.content },
+        ],
+      }}
+      onClose={onClose}
+    />,
+  );
+  expect(screen.getByText(/Source updated after this evidence was anchored/i)).toBeVisible();
+  expect(screen.getByText("Anchored v1")).toBeVisible();
+  expect(screen.getByText("Current v2")).toBeVisible();
+  expect(screen.getByText(versionTwo.content)).toBeVisible();
 });
 
 test("research panel distinguishes loading, evaluable, and unsafe evidence", () => {

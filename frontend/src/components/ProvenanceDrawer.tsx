@@ -1,4 +1,11 @@
-import { CheckCircle2, ExternalLink, Fingerprint, ShieldCheck, X } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  ExternalLink,
+  Fingerprint,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 
 import type { ResolvedProvenance } from "../types";
 
@@ -24,6 +31,15 @@ export function ProvenanceDrawer({
           <CheckCircle2 size={18} />
           <div><strong>Pointer verified</strong><span>Version, hash, offsets, and quote agree.</span></div>
         </div>
+        {!source.source_is_current && (
+          <div className="stale-source-banner">
+            <CircleAlert size={18} />
+            <div>
+              <strong>Source updated after this evidence was anchored</strong>
+              <span>The pointer is intact, but it refers to v{source.source_version}; the source is now v{source.current_version}.</span>
+            </div>
+          </div>
+        )}
         <div className="source-quote">
           <span>Quoted evidence</span>
           <blockquote>{source.quote}</blockquote>
@@ -38,12 +54,26 @@ export function ProvenanceDrawer({
           <Fingerprint size={16} />
           <code>{source.content_hash}</code>
         </div>
+        {!source.source_is_current && (
+          <div className="provenance-comparison">
+            <section>
+              <span>Anchored v{source.source_version}</span>
+              <p>{source.content}</p>
+              <code>{source.content_hash.slice(0, 16)}…</code>
+            </section>
+            <section>
+              <span>Current v{source.current_version}</span>
+              <p>{source.current_content}</p>
+              <code>{source.current_content_hash.slice(0, 16)}…</code>
+            </section>
+          </div>
+        )}
         <div className="source-pointer">
           <span>Original pointer</span>
           <p><ExternalLink size={13} /> {source.source_uri}</p>
         </div>
         <p className="drawer-note">
-          This receipt proves where the displayed statement came from. It does not independently prove that the clinical statement is correct.
+          This receipt proves where the displayed statement came from and whether that source version is current. It does not independently prove that the clinical statement is correct.
         </p>
       </div>
     </div>

@@ -850,6 +850,8 @@ def create_app(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"code": "invalid_provenance", "message": str(exc)},
             ) from exc
+        latest = current_version(session, entry)
+        source_is_current = latest.id == resolved.version.id
         return {
             "span_id": span.id,
             "source_entry_id": entry.id,
@@ -863,6 +865,14 @@ def create_app(
             "content": resolved.version.content,
             "content_hash": resolved.version.content_hash,
             "verified": True,
+            "source_is_current": source_is_current,
+            "current_version_id": latest.id,
+            "current_version": latest.version,
+            "current_content": latest.content,
+            "current_content_hash": latest.content_hash,
+            "changes_since_source": (
+                [] if source_is_current else version_diff(resolved.version, latest)
+            ),
         }
 
     @app.post(f"{API_PREFIX}/highlights/{{highlight_id}}/feedback")

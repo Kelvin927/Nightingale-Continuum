@@ -336,6 +336,11 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .verified-banner div { display: grid; }
 .verified-banner strong { font-size: 10px; }
 .verified-banner span { font-size: 8px; }
+.stale-source-banner { display: flex; align-items: flex-start; gap: 10px; margin-top: 9px; padding: 11px; color: #87552f; background: #fbf0dc; border: 1px solid #ead8b8; border-radius: 9px; }
+.stale-source-banner svg { flex: 0 0 auto; }
+.stale-source-banner div { display: grid; gap: 2px; }
+.stale-source-banner strong { font-size: 9px; }
+.stale-source-banner span { font-size: 8px; line-height: 1.4; }
 .source-quote { margin-top: 18px; }
 .source-quote > span, .source-pointer > span { color: var(--soft); font-size: 8px; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
 .source-quote blockquote { margin: 7px 0 0; padding: 14px; color: #38514e; background: #faf3df; border-left: 3px solid #deb45c; border-radius: 0 8px 8px 0; font-family: Georgia, serif; font-size: 12px; line-height: 1.55; }
@@ -345,6 +350,12 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .evidence-grid dd { display: flex; align-items: center; gap: 4px; margin: 3px 0 0; color: #3f5c57; font-size: 9px; font-weight: 750; text-transform: capitalize; }
 .hash-block { display: flex; align-items: center; gap: 8px; padding: 9px; color: #5f7470; background: #edf1ee; border-radius: 7px; }
 .hash-block code { min-width: 0; overflow: hidden; font-size: 7.5px; text-overflow: ellipsis; }
+.provenance-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.provenance-comparison section { min-width: 0; padding: 10px; background: #f3f5f1; border: 1px solid #e3e8e2; border-radius: 8px; }
+.provenance-comparison section:first-child { background: #faf5e9; border-color: #e8dcc1; }
+.provenance-comparison span { color: #58716c; font-size: 7.5px; font-weight: 850; text-transform: uppercase; }
+.provenance-comparison p { max-height: 145px; overflow-y: auto; margin: 6px 0; color: #4e6561; font-family: Georgia, serif; font-size: 8.5px; line-height: 1.5; white-space: pre-wrap; }
+.provenance-comparison code { color: #8a9692; font-size: 6.5px; }
 .source-pointer { margin-top: 15px; }
 .source-pointer p { display: flex; align-items: center; gap: 6px; margin: 5px 0 0; color: #58736e; font: 8px ui-monospace, monospace; overflow-wrap: anywhere; }
 .drawer-note { margin: 18px 0 0; padding-top: 15px; color: #81908d; border-top: 1px solid var(--line); font-size: 8.5px; line-height: 1.55; }

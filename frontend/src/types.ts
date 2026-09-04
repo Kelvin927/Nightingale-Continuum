@@ -181,6 +181,12 @@ export interface ResolvedProvenance {
   content: string;
   content_hash: string;
   verified: boolean;
+  source_is_current: boolean;
+  current_version_id: string;
+  current_version: number;
+  current_content: string;
+  current_content_hash: string;
+  changes_since_source: Array<{ operation: string; before: string; after: string }>;
 }
 
 export interface PolicyEvaluation {
